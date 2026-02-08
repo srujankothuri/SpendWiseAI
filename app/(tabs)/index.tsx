@@ -145,6 +145,19 @@ export default function HomeScreen() {
                 <TransactionCard
                   transaction={item}
                   onDelete={handleDelete}
+                  onEdit={(t) =>
+                    router.push({
+                      pathname: "/edit-transaction",
+                      params: {
+                        id: t.id,
+                        amount: String(t.amount),
+                        description: t.description,
+                        category: t.category,
+                        merchant: t.merchant,
+                        date: t.date,
+                      },
+                    })
+                  }
                 />
               </View>
             );
