@@ -1,36 +1,605 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Dimensions,
+  RefreshControl,
+  ActivityIndicator,
+  TouchableOpacity,
+} from "react-native";
+import { useFocusEffect } from "expo-router";
+import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
+import { supabase } from "../../src/lib/supabase";
+import {
+  getTransactionsByMonth,
+  getSpendingByCategory,
+  getMonthlyTotal,
+} from "../../src/lib/transactions";
+import {
+  getCurrentMonth,
+  getPreviousMonth,
+  getNextMonth,
+  formatMonth,
+  formatCurrency,
+} from "../../src/utils/date";
+import { predictCategorySpending } from "../../src/utils/analytics";
+import { DEFAULT_CATEGORIES } from "../../src/constants/categories";
+import { COLORS } from "../../src/constants/colors";
 
-// Analytics screen - data visualization dashboard.
-// Will contain:
-//   - Pie chart (spending by category)
-//   - Bar chart (daily/weekly spending)
-//   - Line chart (month-over-month trends)
-//   - AI-generated monthly insights
+// ============================================
+// ANALYTICS SCREEN
+// ============================================
+// Data visualization dashboard with three charts:
+//
+// 1. PIE CHART — spending breakdown by category
+//    Shows what % of your money goes where.
+//    Most useful chart for expense tracking.
+//
+// 2. BAR CHART — daily spending for the month
+//    Shows which days you spent the most.
+//    Helps identify spending spikes.
+//
+// 3. LINE CHART — month-over-month comparison
+//    Compares current month vs last month spending.
+//    Shows if spending is trending up or down.
+//
+// Also includes a per-category prediction section
+// showing projected month-end spending per category.
+
+const screenWidth = Dimensions.get("window").width;
+
+// Chart.js configuration — controls how all charts look
+const chartConfig = {
+  backgroundColor: COLORS.surface,
+  backgroundGradientFrom: COLORS.surface,
+  backgroundGradientTo: COLORS.surface,
+  color: (opacity = 1) => `rgba(233, 69, 96, ${opacity})`,
+  labelColor: () => COLORS.textSecondary,
+  decimalPlaces: 0,
+  propsForBackgroundLines: {
+    strokeDasharray: "",
+    stroke: COLORS.surfaceLight,
+    strokeWidth: 1,
+  },
+  propsForLabels: {
+    fontSize: 11,
+  },
+};
 
 export default function AnalyticsScreen() {
+  const [categorySpending, setCategorySpending] = useState<any[]>([]);
+  const [dailySpending, setDailySpending] = useState<any[]>([]);
+  const [currentMonthTotal, setCurrentMonthTotal] = useState(0);
+  const [lastMonthTotal, setLastMonthTotal] = useState(0);
+  const [categoryPredictions, setCategoryPredictions] = useState<any[]>([]);
+  const [monthlyTrend, setMonthlyTrend] = useState<number[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const prevMonth = getPreviousMonth(selectedMonth);
+
+      // Fetch everything in parallel
+      const [catSpending, transactions, curTotal, prevTotal, prevTransactions] =
+        await Promise.all([
+          getSpendingByCategory(user.id, selectedMonth),
+          getTransactionsByMonth(user.id, selectedMonth),
+          getMonthlyTotal(user.id, selectedMonth),
+          getMonthlyTotal(user.id, prevMonth),
+          getTransactionsByMonth(user.id, prevMonth),
+        ]);
+
+      setCategorySpending(catSpending);
+      setCurrentMonthTotal(curTotal);
+      setLastMonthTotal(prevTotal);
+
+      // Category predictions
+      setCategoryPredictions(
+        predictCategorySpending(transactions, selectedMonth)
+      );
+
+      // Daily spending aggregation for bar chart
+      // Groups transactions by day and sums amounts
+      const dailyMap: Record<string, number> = {};
+      transactions.forEach((t) => {
+        const day = t.date.split("-")[2];
+        dailyMap[day] = (dailyMap[day] || 0) + Number(t.amount);
+      });
+
+      // Convert to sorted array
+      const dailyArr = Object.entries(dailyMap)
+        .map(([day, amount]) => ({ day, amount }))
+        .sort((a, b) => Number(a.day) - Number(b.day));
+      setDailySpending(dailyArr);
+
+      // Monthly trend — last 3 months including current
+      const twoMonthsAgo = getPreviousMonth(prevMonth);
+      const twoMonthsAgoTotal = await getMonthlyTotal(user.id, twoMonthsAgo);
+      setMonthlyTrend([twoMonthsAgoTotal, prevTotal, curTotal]);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [selectedMonth])
+  );
+
+  // Navigate between months
+  const goToPrevMonth = () => setSelectedMonth(getPreviousMonth(selectedMonth));
+  const goToNextMonth = () => {
+    const next = getNextMonth(selectedMonth);
+    if (next <= getCurrentMonth()) {
+      setSelectedMonth(next);
+    }
+  };
+
+  // Prepare pie chart data
+  // react-native-chart-kit expects a specific format:
+  // [{ name, amount, color, legendFontColor, legendFontSize }]
+  const pieData = categorySpending.slice(0, 6).map((cs, index) => {
+    const catConfig = DEFAULT_CATEGORIES.find((c) => c.name === cs.category);
+    return {
+      name: cs.category,
+      amount: cs.amount,
+      color: catConfig?.color || COLORS.chart[index % COLORS.chart.length],
+      legendFontColor: COLORS.textSecondary,
+      legendFontSize: 11,
+    };
+  });
+
+  // Prepare bar chart data
+  const barData = {
+    labels: dailySpending.slice(-7).map((d) => d.day),
+    datasets: [
+      {
+        data:
+          dailySpending.slice(-7).map((d) => d.amount).length > 0
+            ? dailySpending.slice(-7).map((d) => d.amount)
+            : [0],
+      },
+    ],
+  };
+
+  // Prepare line chart data — monthly trend
+  const prevMonth = getPreviousMonth(selectedMonth);
+  const twoMonthsAgo = getPreviousMonth(prevMonth);
+  const lineData = {
+    labels: [
+      formatMonth(twoMonthsAgo).split(" ")[0].slice(0, 3),
+      formatMonth(prevMonth).split(" ")[0].slice(0, 3),
+      formatMonth(selectedMonth).split(" ")[0].slice(0, 3),
+    ],
+    datasets: [
+      {
+        data: monthlyTrend.length > 0 ? monthlyTrend.map((v) => v || 0) : [0, 0, 0],
+        strokeWidth: 3,
+      },
+    ],
+  };
+
+  // Month-over-month change
+  const monthChange =
+    lastMonthTotal > 0
+      ? Math.round(((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
+      : 0;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Analytics</Text>
-      <Text style={styles.subtitle}>Charts and insights coming soon</Text>
-    </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchData();
+          }}
+          tintColor={COLORS.primary}
+        />
+      }
+    >
+      {/* Month Navigator */}
+      <View style={styles.monthNav}>
+        <TouchableOpacity onPress={goToPrevMonth}>
+          <Text style={styles.navArrow}>◀</Text>
+        </TouchableOpacity>
+        <Text style={styles.monthTitle}>{formatMonth(selectedMonth)}</Text>
+        <TouchableOpacity
+          onPress={goToNextMonth}
+          disabled={selectedMonth === getCurrentMonth()}
+        >
+          <Text
+            style={[
+              styles.navArrow,
+              selectedMonth === getCurrentMonth() && { opacity: 0.3 },
+            ]}
+          >
+            ▶
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Summary Cards */}
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Total Spent</Text>
+          <Text style={styles.summaryValue}>
+            {formatCurrency(currentMonthTotal)}
+          </Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>vs Last Month</Text>
+          <Text
+            style={[
+              styles.summaryValue,
+              {
+                color:
+                  monthChange > 0
+                    ? COLORS.danger
+                    : monthChange < 0
+                    ? COLORS.success
+                    : COLORS.textPrimary,
+              },
+            ]}
+          >
+            {monthChange > 0 ? "+" : ""}
+            {monthChange}%
+          </Text>
+        </View>
+      </View>
+
+      {/* No data state */}
+      {categorySpending.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📊</Text>
+          <Text style={styles.emptyTitle}>No data yet</Text>
+          <Text style={styles.emptySubtext}>
+            Add some expenses to see your analytics
+          </Text>
+        </View>
+      ) : (
+        <>
+          {/* ===== PIE CHART ===== */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Spending by Category</Text>
+            <View style={styles.chartCard}>
+              <PieChart
+                data={pieData}
+                width={screenWidth - 64}
+                height={200}
+                chartConfig={chartConfig}
+                accessor="amount"
+                backgroundColor="transparent"
+                paddingLeft="0"
+                absolute={false}
+              />
+            </View>
+          </View>
+
+          {/* Category breakdown list */}
+          <View style={styles.section}>
+            {categorySpending.map((cs, index) => {
+              const catConfig = DEFAULT_CATEGORIES.find(
+                (c) => c.name === cs.category
+              );
+              return (
+                <View key={index} style={styles.categoryRow}>
+                  <View style={styles.categoryLeft}>
+                    <View
+                      style={[
+                        styles.colorDot,
+                        { backgroundColor: catConfig?.color || COLORS.textSecondary },
+                      ]}
+                    />
+                    <Text style={styles.categoryName}>
+                      {catConfig?.icon} {cs.category}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryRight}>
+                    <Text style={styles.categoryAmount}>
+                      {formatCurrency(cs.amount)}
+                    </Text>
+                    <Text style={styles.categoryPercent}>{cs.percentage}%</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* ===== BAR CHART ===== */}
+          {dailySpending.length > 1 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Daily Spending</Text>
+              <View style={styles.chartCard}>
+                <BarChart
+                  data={barData}
+                  width={screenWidth - 64}
+                  height={200}
+                  chartConfig={{
+                    ...chartConfig,
+                    barPercentage: 0.6,
+                  }}
+                  yAxisLabel="$"
+                  yAxisSuffix=""
+                  fromZero
+                  showValuesOnTopOfBars
+                  style={styles.chart}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ===== LINE CHART ===== */}
+          {monthlyTrend.some((v) => v > 0) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Monthly Trend</Text>
+              <View style={styles.chartCard}>
+                <LineChart
+                  data={lineData}
+                  width={screenWidth - 64}
+                  height={200}
+                  chartConfig={{
+                    ...chartConfig,
+                    color: (opacity = 1) => `rgba(233, 69, 96, ${opacity})`,
+                  }}
+                  yAxisLabel="$"
+                  yAxisSuffix=""
+                  fromZero
+                  bezier
+                  style={styles.chart}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ===== CATEGORY PREDICTIONS ===== */}
+          {categoryPredictions.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Projected Spending</Text>
+              <Text style={styles.sectionSubtitle}>
+                At your current pace this month
+              </Text>
+              {categoryPredictions.map((cp, index) => {
+                const catConfig = DEFAULT_CATEGORIES.find(
+                  (c) => c.name === cp.category
+                );
+                return (
+                  <View key={index} style={styles.predictionRow}>
+                    <Text style={styles.predictionCategory}>
+                      {catConfig?.icon} {cp.category}
+                    </Text>
+                    <View style={styles.predictionAmounts}>
+                      <Text style={styles.predictionCurrent}>
+                        {formatCurrency(cp.current)}
+                      </Text>
+                      <Text style={styles.predictionArrow}> → </Text>
+                      <Text style={styles.predictionProjected}>
+                        {formatCurrency(cp.predicted)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </>
+      )}
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1a1a2e",
+    backgroundColor: COLORS.background,
   },
-  title: {
-    fontSize: 28,
+
+  // Month navigation
+  monthNav: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  navArrow: {
+    fontSize: 18,
+    color: COLORS.primary,
+    padding: 8,
+  },
+  monthTitle: {
+    fontSize: 18,
     fontWeight: "bold",
-    color: "#e94560",
+    color: COLORS.textPrimary,
   },
-  subtitle: {
+
+  // Summary cards
+  summaryRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+
+  // Sections
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+
+  // Chart card
+  chartCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  chart: {
+    borderRadius: 12,
+  },
+
+  // Category breakdown
+  categoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.surfaceLight,
+  },
+  categoryLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  colorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  categoryName: {
     fontSize: 14,
-    color: "#eaeaea",
-    marginTop: 8,
+    color: COLORS.textPrimary,
+  },
+  categoryRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  categoryAmount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  categoryPercent: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    width: 36,
+    textAlign: "right",
+  },
+
+  // Predictions
+  predictionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  predictionCategory: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    flex: 1,
+  },
+  predictionAmounts: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  predictionCurrent: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  predictionArrow: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  predictionProjected: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+
+  // Empty state
+  emptyState: {
+    alignItems: "center",
+    padding: 40,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: "center",
   },
 });
