@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { updateTransaction, deleteTransaction } from "../src/lib/transactions";
 import { getToday } from "../src/utils/date";
@@ -45,10 +46,10 @@ export default function EditTransactionScreen() {
   const [date, setDate] = useState(params.date || getToday());
   const [loading, setLoading] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const descriptionRef = useRef<TextInput>(null);
   const merchantRef = useRef<TextInput>(null);
-  const dateRef = useRef<TextInput>(null);
 
   const handleSave = async () => {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
@@ -57,30 +58,6 @@ export default function EditTransactionScreen() {
     }
     if (!description.trim()) {
       Alert.alert("Error", "Please enter a description");
-      return;
-    }
-
-    // Date validation
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
-      Alert.alert("Error", "Please enter a valid date (YYYY-MM-DD)");
-      return;
-    }
-    const [y, m, d] = date.split("-").map(Number);
-    if (m < 1 || m > 12) {
-      Alert.alert("Error", "Invalid month — must be between 01 and 12");
-      return;
-    }
-    const daysInMonth = new Date(y, m, 0).getDate();
-    if (d < 1 || d > daysInMonth) {
-      Alert.alert("Error", `Invalid day — ${date.slice(0, 7)} only has ${daysInMonth} days`);
-      return;
-    }
-    const parsedDate = new Date(date + "T00:00:00");
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (parsedDate > today) {
-      Alert.alert("Error", "Date cannot be in the future");
       return;
     }
 
@@ -230,42 +207,60 @@ export default function EditTransactionScreen() {
             placeholderTextColor={COLORS.textSecondary}
             value={merchant}
             onChangeText={setMerchant}
-            returnKeyType="next"
-            onSubmitEditing={() => dateRef.current?.focus()}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
           />
         </View>
 
         {/* Date */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Date</Text>
-          <TextInput
-            ref={dateRef}
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={COLORS.textSecondary}
-            value={date}
-            onChangeText={setDate}
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
-          <View style={styles.dateShortcuts}>
-            <TouchableOpacity
-              style={styles.dateChip}
-              onPress={() => setDate(getToday())}
-            >
-              <Text style={styles.dateChipText}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dateChip}
-              onPress={() => {
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                setDate(yesterday.toISOString().split("T")[0]);
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.dateButtonText}>{date}</Text>
+            <Text style={styles.dateIcon}>📅</Text>
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={new Date(date + "T00:00:00")}
+              mode="date"
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              maximumDate={new Date()}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === "android") {
+                  setShowDatePicker(false);
+                }
+                if (selectedDate) {
+                  setDate(selectedDate.toISOString().split("T")[0]);
+                }
               }}
-            >
-              <Text style={styles.dateChipText}>Yesterday</Text>
-            </TouchableOpacity>
-          </View>
+              themeVariant="dark"
+            />
+          )}
+
+          {!showDatePicker && (
+            <View style={styles.dateShortcuts}>
+              <TouchableOpacity
+                style={styles.dateChip}
+                onPress={() => setDate(getToday())}
+              >
+                <Text style={styles.dateChipText}>Today</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateChip}
+                onPress={() => {
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  setDate(yesterday.toISOString().split("T")[0]);
+                }}
+              >
+                <Text style={styles.dateChipText}>Yesterday</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Delete Button */}
@@ -383,6 +378,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 8,
+  },
+  dateButton: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  dateIcon: {
+    fontSize: 18,
   },
   dateChip: {
     backgroundColor: COLORS.surface,

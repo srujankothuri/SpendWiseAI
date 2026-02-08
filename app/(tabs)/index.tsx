@@ -230,14 +230,23 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* Floating Add Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/add-transaction")}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {/* Floating Action Buttons */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => router.push("/ai-entry")}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabSmallText}>✨</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push("/add-transaction")}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -315,6 +324,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: "center",
+  },
+  fabContainer: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    alignItems: "center",
+    gap: 12,
+  },
+  fabSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  fabSmallText: {
+    fontSize: 20,
   },
   fab: {
     position: "absolute",

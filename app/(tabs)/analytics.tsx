@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { PieChart, BarChart, LineChart } from "react-native-chart-kit";
@@ -25,6 +26,7 @@ import {
   formatCurrency,
 } from "../../src/utils/date";
 import { predictCategorySpending } from "../../src/utils/analytics";
+import { generateMonthlyInsights, SpendingInsight } from "../../src/lib/gemini";
 import { DEFAULT_CATEGORIES } from "../../src/constants/categories";
 import { COLORS } from "../../src/constants/colors";
 
@@ -75,6 +77,8 @@ export default function AnalyticsScreen() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0);
   const [categoryPredictions, setCategoryPredictions] = useState<any[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<number[]>([]);
+  const [aiInsights, setAiInsights] = useState<SpendingInsight | null>(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -139,11 +143,48 @@ export default function AnalyticsScreen() {
     }, [selectedMonth])
   );
 
+  const fetchAIInsights = async () => {
+    setLoadingInsights(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const transactions = await getTransactionsByMonth(user.id, selectedMonth);
+      const prevMonth = getPreviousMonth(selectedMonth);
+      const prevTotal = await getMonthlyTotal(user.id, prevMonth);
+
+      const transactionData = transactions.map((t) => ({
+        description: t.description,
+        amount: Number(t.amount),
+        category: t.category,
+        date: t.date,
+      }));
+
+      const insights = await generateMonthlyInsights(
+        transactionData,
+        currentMonthTotal,
+        prevTotal
+      );
+      setAiInsights(insights);
+    } catch (error) {
+      console.error("Error fetching insights:", error);
+      Alert.alert("Error", "Failed to generate AI insights");
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
   // Navigate between months
-  const goToPrevMonth = () => setSelectedMonth(getPreviousMonth(selectedMonth));
+  const goToPrevMonth = () => {
+    setAiInsights(null);
+    setSelectedMonth(getPreviousMonth(selectedMonth));
+  };
   const goToNextMonth = () => {
     const next = getNextMonth(selectedMonth);
     if (next <= getCurrentMonth()) {
+      setAiInsights(null);
       setSelectedMonth(next);
     }
   };
@@ -405,6 +446,100 @@ export default function AnalyticsScreen() {
               })}
             </View>
           )}
+          {/* ===== AI INSIGHTS ===== */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>AI Insights ✨</Text>
+
+            {!aiInsights && !loadingInsights && (
+              <TouchableOpacity
+                style={styles.insightButton}
+                onPress={fetchAIInsights}
+              >
+                <Text style={styles.insightButtonIcon}>🤖</Text>
+                <View>
+                  <Text style={styles.insightButtonTitle}>
+                    Generate AI Insights
+                  </Text>
+                  <Text style={styles.insightButtonSubtext}>
+                    Get personalized spending analysis and tips
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {loadingInsights && (
+              <View style={styles.insightLoading}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.insightLoadingText}>
+                  AI is analyzing your spending...
+                </Text>
+              </View>
+            )}
+
+            {aiInsights && (
+              <View style={styles.insightCard}>
+                {/* Summary */}
+                <Text style={styles.insightSummary}>
+                  {aiInsights.summary}
+                </Text>
+
+                {/* Highlights */}
+                {aiInsights.highlights.length > 0 && (
+                  <View style={styles.insightSection}>
+                    <Text style={styles.insightSectionTitle}>
+                      ✅ Highlights
+                    </Text>
+                    {aiInsights.highlights.map((h, i) => (
+                      <Text key={i} style={styles.insightItem}>
+                        {h}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+
+                {/* Warnings */}
+                {aiInsights.warnings.length > 0 && (
+                  <View style={styles.insightSection}>
+                    <Text style={styles.insightSectionTitle}>
+                      ⚠️ Watch Out
+                    </Text>
+                    {aiInsights.warnings.map((w, i) => (
+                      <Text key={i} style={styles.insightItem}>
+                        {w}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+
+                {/* Tips */}
+                {aiInsights.tips.length > 0 && (
+                  <View style={styles.insightSection}>
+                    <Text style={styles.insightSectionTitle}>
+                      💡 Saving Tips
+                    </Text>
+                    {aiInsights.tips.map((t, i) => (
+                      <Text key={i} style={styles.insightItem}>
+                        {t}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+
+                {/* Regenerate */}
+                <TouchableOpacity
+                  style={styles.regenerateButton}
+                  onPress={() => {
+                    setAiInsights(null);
+                    fetchAIInsights();
+                  }}
+                >
+                  <Text style={styles.regenerateText}>
+                    🔄 Regenerate Insights
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </>
       )}
 
@@ -601,5 +736,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: "center",
+  },
+
+  // AI Insights
+  insightButton: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  insightButtonIcon: {
+    fontSize: 36,
+    marginRight: 16,
+  },
+  insightButtonTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  insightButtonSubtext: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  insightLoading: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  insightLoadingText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 12,
+  },
+  insightCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  insightSummary: {
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  insightSection: {
+    marginBottom: 16,
+  },
+  insightSectionTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  insightItem: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 6,
+    paddingLeft: 4,
+  },
+  regenerateButton: {
+    alignItems: "center",
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  regenerateText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
