@@ -33,7 +33,7 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
     // Allow modal screens to stay open without redirect
-    const inModal = segments[0] === "add-transaction" || segments[0] === "edit-transaction";
+    const inModal = segments[0] === "add-transaction" || segments[0] === "edit-transaction" || segments[0] === "set-budget";
 
     if (session && !inTabsGroup && !inModal) {
       router.replace("/(tabs)");
@@ -66,6 +66,13 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="edit-transaction"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="set-budget"
           options={{
             presentation: "modal",
             headerShown: false,

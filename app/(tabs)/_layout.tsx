@@ -1,13 +1,6 @@
 import { Tabs } from "expo-router";
 import { Text } from "react-native";
 
-// This creates the bottom tab bar you see in most apps.
-// Each Tab.Screen maps to a file in this (tabs) folder.
-// The tab bar stays visible on all these screens.
-//
-// We're using emoji icons for now — we'll replace them
-// with proper icons (lucide or expo vector icons) later.
-
 export default function TabsLayout() {
   return (
     <Tabs
