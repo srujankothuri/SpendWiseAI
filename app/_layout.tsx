@@ -30,16 +30,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (loading) return;
 
-    // Check which route group the user is currently in
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
+    // Allow modal screens to stay open without redirect
+    const inModal = segments[0] === "add-transaction";
 
-    if (session && !inTabsGroup) {
-      // User is logged in but NOT on the main app screens
-      // This covers both the root index AND auth screens
+    if (session && !inTabsGroup && !inModal) {
       router.replace("/(tabs)");
     } else if (!session && !inAuthGroup) {
-      // User is NOT logged in and NOT on auth screens
       router.replace("/(auth)/login");
     }
   }, [session, loading, segments]);
@@ -59,6 +57,13 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="index" />
+        <Stack.Screen
+          name="add-transaction"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );

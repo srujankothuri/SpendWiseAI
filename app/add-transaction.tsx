@@ -1,0 +1,407 @@
+import { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { supabase } from "../src/lib/supabase";
+import { addTransaction } from "../src/lib/transactions";
+import { categorizeExpense, extractMerchant } from "../src/utils/categorize";
+import { getToday } from "../src/utils/date";
+import { DEFAULT_CATEGORIES } from "../src/constants/categories";
+import { COLORS } from "../src/constants/colors";
+
+// ============================================
+// ADD TRANSACTION SCREEN
+// ============================================
+// This is where users add new expenses.
+// Key features:
+// - Auto-categorization as user types description
+// - Category picker with visual icons
+// - Date picker (defaults to today)
+// - Merchant auto-extraction from description
+//
+// Registered as a modal in _layout.tsx so it
+// slides up from the bottom over the tab screens.
+
+export default function AddTransactionScreen() {
+  const router = useRouter();
+
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Other");
+  const [merchant, setMerchant] = useState("");
+  const [date, setDate] = useState(getToday());
+  const [loading, setLoading] = useState(false);
+  const [showCategories, setShowCategories] = useState(false);
+
+  // Refs for jumping between fields on "return" key
+  const descriptionRef = useRef<TextInput>(null);
+  const merchantRef = useRef<TextInput>(null);
+  const dateRef = useRef<TextInput>(null);
+
+  // Auto-categorize as user types description
+  // This is the smart local engine in action —
+  // it runs on every keystroke with no API call
+  useEffect(() => {
+    if (description.length > 2) {
+      const result = categorizeExpense(description);
+      if (result.confidence > 0.5) {
+        setCategory(result.category);
+      }
+
+      const extractedMerchant = extractMerchant(description);
+      if (extractedMerchant && !merchant) {
+        setMerchant(extractedMerchant);
+      }
+    }
+  }, [description]);
+
+  const handleSave = async () => {
+    // Validation
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert("Error", "Please enter a description");
+      return;
+    }
+
+    // Validate date format and value
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      Alert.alert("Error", "Please enter a valid date (YYYY-MM-DD)");
+      return;
+    }
+    const [y, m, d] = date.split("-").map(Number);
+    if (m < 1 || m > 12) {
+      Alert.alert("Error", "Invalid month — must be between 01 and 12");
+      return;
+    }
+    const daysInMonth = new Date(y, m, 0).getDate();
+    if (d < 1 || d > daysInMonth) {
+      Alert.alert("Error", `Invalid day — ${date.slice(0, 7)} only has ${daysInMonth} days`);
+      return;
+    }
+    const parsedDate = new Date(date + "T00:00:00");
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (parsedDate > today) {
+      Alert.alert("Error", "Date cannot be in the future");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert("Error", "Not authenticated");
+        return;
+      }
+
+      await addTransaction({
+        user_id: user.id,
+        amount: Number(amount),
+        description: description.trim(),
+        category,
+        merchant: merchant.trim(),
+        date,
+      });
+
+      // Go back to home screen
+      router.back();
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to save transaction");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Expense</Text>
+          <TouchableOpacity onPress={handleSave} disabled={loading}>
+            <Text style={[styles.saveText, loading && { opacity: 0.5 }]}>
+              {loading ? "Saving..." : "Save"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Amount Input - Large and prominent */}
+        <View style={styles.amountContainer}>
+          <Text style={styles.dollarSign}>$</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            placeholderTextColor={COLORS.textSecondary}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            autoFocus
+            returnKeyType="next"
+            onSubmitEditing={() => descriptionRef.current?.focus()}
+          />
+        </View>
+
+        {/* Description Input */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            ref={descriptionRef}
+            style={styles.input}
+            placeholder="e.g. Coffee at Starbucks"
+            placeholderTextColor={COLORS.textSecondary}
+            value={description}
+            onChangeText={setDescription}
+            returnKeyType="next"
+            onSubmitEditing={() => merchantRef.current?.focus()}
+          />
+          {description.length > 2 && (
+            <Text style={styles.autoDetect}>
+              Auto-detected: {category} ✨
+            </Text>
+          )}
+        </View>
+
+        {/* Category Picker */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Category</Text>
+          <TouchableOpacity
+            style={styles.categoryButton}
+            onPress={() => setShowCategories(!showCategories)}
+          >
+            <Text style={styles.categoryButtonText}>
+              {DEFAULT_CATEGORIES.find((c) => c.name === category)?.icon}{" "}
+              {category}
+            </Text>
+            <Text style={styles.chevron}>
+              {showCategories ? "▲" : "▼"}
+            </Text>
+          </TouchableOpacity>
+
+          {showCategories && (
+            <View style={styles.categoryGrid}>
+              {DEFAULT_CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryChip,
+                    category === cat.name && {
+                      backgroundColor: cat.color,
+                      borderColor: cat.color,
+                    },
+                  ]}
+                  onPress={() => {
+                    setCategory(cat.name);
+                    setShowCategories(false);
+                  }}
+                >
+                  <Text style={styles.categoryChipText}>
+                    {cat.icon} {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Merchant Input */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Merchant (optional)</Text>
+          <TextInput
+            ref={merchantRef}
+            style={styles.input}
+            placeholder="e.g. Starbucks"
+            placeholderTextColor={COLORS.textSecondary}
+            value={merchant}
+            onChangeText={setMerchant}
+            returnKeyType="next"
+            onSubmitEditing={() => dateRef.current?.focus()}
+          />
+        </View>
+
+        {/* Date Input */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Date</Text>
+          <TextInput
+            ref={dateRef}
+            style={styles.input}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={COLORS.textSecondary}
+            value={date}
+            onChangeText={setDate}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+          />
+          {/* Quick date buttons */}
+          <View style={styles.dateShortcuts}>
+            <TouchableOpacity
+              style={styles.dateChip}
+              onPress={() => setDate(getToday())}
+            >
+              <Text style={styles.dateChipText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.dateChip}
+              onPress={() => {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                setDate(yesterday.toISOString().split("T")[0]);
+              }}
+            >
+              <Text style={styles.dateChipText}>Yesterday</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  cancelText: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+  },
+  headerTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  saveText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  amountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 32,
+    paddingVertical: 16,
+  },
+  dollarSign: {
+    fontSize: 48,
+    fontWeight: "bold",
+    color: COLORS.textSecondary,
+    marginRight: 4,
+  },
+  amountInput: {
+    fontSize: 48,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    minWidth: 120,
+    textAlign: "center",
+  },
+  fieldContainer: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  autoDetect: {
+    fontSize: 12,
+    color: COLORS.success,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  categoryButton: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  categoryButtonText: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  chevron: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  categoryChip: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  categoryChipText: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+  },
+  dateShortcuts: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  dateChip: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  dateChipText: {
+    color: COLORS.primary,
+    fontSize: 13,
+  },
+});

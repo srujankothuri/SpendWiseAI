@@ -3,12 +3,11 @@ import { Category } from "../types";
 // ============================================
 // DEFAULT EXPENSE CATEGORIES
 // ============================================
-// These are the built-in categories with keyword mappings.
-// The keywords power the LOCAL auto-categorization engine —
-// when a user types "uber ride home", the engine matches
-// "uber" to Transport without any AI API call.
-//
-// Users can also create custom categories later.
+// Intentionally kept focused — covers top merchants and
+// common terms per category. The app also has:
+//   Layer 2: User correction learning (adapts over time)
+//   Layer 3: Gemini AI fallback (handles edge cases)
+// So this list doesn't need to be exhaustive.
 
 export const DEFAULT_CATEGORIES: Category[] = [
   {
@@ -22,6 +21,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "ubereats", "grubhub", "cafe", "bakery", "dunkin", "subway",
       "wendys", "chick-fil-a", "panera", "dominos", "taco bell",
       "food", "eat", "meal", "snack", "drink", "bar", "pub",
+      "brunch", "takeout", "panda express", "five guys", "popeyes",
+      "kfc", "sushi", "ramen", "thai", "noodle", "ice cream",
+      "smoothie", "juice", "dine", "dining", "delivery","brewery", "wine", "beer", "liquor", "cocktail"
     ],
   },
   {
@@ -33,6 +35,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "uber", "lyft", "gas", "fuel", "parking", "toll", "bus",
       "subway", "metro", "train", "taxi", "car wash", "oil change",
       "mechanic", "auto", "vehicle", "mbta", "transit",
+      "shell", "chevron", "exxon", "bp", "gas station",
+      "car rental", "hertz", "enterprise", "bike", "scooter",
+      "lime", "bird", "amtrak", "flight", "airline", "commute",
     ],
   },
   {
@@ -43,7 +48,10 @@ export const DEFAULT_CATEGORIES: Category[] = [
     keywords: [
       "amazon", "walmart", "target", "costco", "best buy", "nike",
       "clothes", "shoes", "electronics", "online", "store", "mall",
-      "zara", "h&m", "uniqlo", "ebay", "etsy",
+      "zara", "h&m", "uniqlo", "ebay", "etsy", "adidas",
+      "nordstrom", "macys", "kohls", "home depot", "lowes",
+      "ikea", "furniture", "sephora", "ulta", "apple store",
+      "shopping", "bought", "purchase", "order", "retail",
     ],
   },
   {
@@ -54,7 +62,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
     keywords: [
       "whole foods", "trader joes", "kroger", "aldi", "grocery",
       "supermarket", "market", "produce", "wegmans", "safeway",
-      "publix", "stop and shop", "stop & shop",
+      "publix", "stop and shop", "stop & shop", "instacart",
+      "sprouts", "heb", "meijer", "lidl", "food lion",
+      "vegetables", "fruits", "meat", "dairy", "eggs", "milk",
     ],
   },
   {
@@ -66,6 +76,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "netflix", "spotify", "hulu", "disney", "hbo", "youtube",
       "apple music", "amazon prime", "subscription", "membership",
       "gym", "icloud", "google one", "chatgpt", "openai",
+      "adobe", "microsoft 365", "paramount", "peacock",
+      "planet fitness", "peloton", "headspace", "calm",
+      "dropbox", "github", "medium", "patreon", "audible",
     ],
   },
   {
@@ -77,6 +90,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "rent", "mortgage", "electric", "electricity", "water",
       "gas bill", "internet", "wifi", "utility", "utilities",
       "insurance", "maintenance", "repair", "plumber",
+      "comcast", "xfinity", "spectrum", "verizon", "at&t",
+      "t-mobile", "phone bill", "cable", "trash", "hoa",
+      "landlord", "lease", "heating", "cooling",
     ],
   },
   {
@@ -88,6 +104,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "doctor", "hospital", "pharmacy", "cvs", "walgreens",
       "medicine", "prescription", "dental", "dentist", "eye",
       "optometrist", "therapy", "medical", "health", "clinic",
+      "copay", "urgent care", "lab", "blood test", "checkup",
+      "chiropractor", "physical therapy", "mental health",
     ],
   },
   {
@@ -99,6 +117,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "movie", "cinema", "theater", "concert", "game", "games",
       "steam", "playstation", "xbox", "nintendo", "ticket",
       "event", "museum", "amusement", "bowling", "sports",
+      "festival", "zoo", "aquarium", "arcade", "comedy",
+      "books", "bookstore", "hobby", "art", "photography",
     ],
   },
   {
@@ -110,6 +130,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
       "tuition", "book", "books", "course", "udemy", "coursera",
       "university", "college", "school", "textbook", "class",
       "tutorial", "learning", "exam", "test prep",
+      "linkedin learning", "skillshare", "certification",
+      "training", "workshop", "bootcamp", "semester",
     ],
   },
   {
@@ -117,6 +139,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: "Other",
     icon: "📦",
     color: "#95a5a6",
-    keywords: [],  // catch-all for anything that doesn't match
+    keywords: [],
   },
 ];
