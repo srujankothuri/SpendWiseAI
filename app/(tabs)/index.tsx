@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,29 +10,35 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../src/lib/supabase";
-import { getRecentTransactions, getMonthlyTotal, deleteTransaction } from "../../src/lib/transactions";
-import { getCurrentMonth, formatMonth, formatCurrency, formatDateGroup } from "../../src/utils/date";
+import {
+  getRecentTransactions,
+  getMonthlyTotal,
+  deleteTransaction,
+} from "../../src/lib/transactions";
+import {
+  getCurrentMonth,
+  formatMonth,
+  formatCurrency,
+  formatDateGroup,
+} from "../../src/utils/date";
 import TransactionCard from "../../src/components/TransactionCard";
+import SearchBar from "../../src/components/SearchBar";
+import CategoryFilter from "../../src/components/CategoryFilter";
 import { Transaction } from "../../src/types";
 import { COLORS } from "../../src/constants/colors";
 
 // ============================================
-// HOME SCREEN
+// HOME SCREEN - WITH SEARCH & FILTER
 // ============================================
-// The main screen users see after logging in.
-// Shows:
-//   - Monthly spending total at the top
-//   - Transaction list grouped by date
-//   - Floating "+" button to add new expense
+// Now includes:
+//   - Search bar (filters by description, merchant, category)
+//   - Category filter chips (horizontal scroll)
+//   - Both filters work together (AND logic)
 //
-// useFocusEffect: Refetches data every time user
-// navigates back to this screen (e.g. after adding
-// a transaction). Unlike useEffect which only runs
-// on mount, this runs on every focus.
-//
-// FlatList: Efficiently renders large lists by only
-// rendering items visible on screen (virtualization).
-// Much better than ScrollView for long lists.
+// useMemo: Filters are computed from the full transaction
+// list without refetching from the database. This is the
+// right pattern — fetch once, filter client-side.
+// Only refetch when data actually changes (add/edit/delete).
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -40,12 +46,16 @@ export default function HomeScreen() {
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const currentMonth = getCurrentMonth();
 
   const fetchData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const [txns, total] = await Promise.all([
@@ -63,22 +73,45 @@ export default function HomeScreen() {
     }
   };
 
-  // Fetch data every time screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchData();
     }, [])
   );
 
+  // Filter transactions based on search query AND category
+  // useMemo ensures this only recalculates when dependencies change,
+  // not on every render. Without useMemo, typing each character
+  // would re-filter the entire list AND re-render everything.
+  const filteredTransactions = useMemo(() => {
+    let result = transactions;
+
+    // Category filter
+    if (selectedCategory) {
+      result = result.filter((t) => t.category === selectedCategory);
+    }
+
+    // Search filter — checks description, merchant, and category
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.description.toLowerCase().includes(query) ||
+          t.merchant.toLowerCase().includes(query) ||
+          t.category.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [transactions, searchQuery, selectedCategory]);
+
   const handleDelete = async (id: string) => {
     try {
       await deleteTransaction(id);
-      // Remove from local state immediately (optimistic update)
-      // This makes the UI feel instant instead of waiting
-      // for a refetch from the server
       setTransactions((prev) => prev.filter((t) => t.id !== id));
-      // Refetch total
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         const total = await getMonthlyTotal(user.id, currentMonth);
         setMonthlyTotal(total);
@@ -93,10 +126,8 @@ export default function HomeScreen() {
     fetchData();
   };
 
-  // Group transactions by date for section-like display
-  const groupedDates = [
-    ...new Set(transactions.map((t) => t.date)),
-  ];
+  // Count for showing filter results
+  const isFiltering = searchQuery.trim().length > 0 || selectedCategory !== null;
 
   if (loading) {
     return (
@@ -117,6 +148,23 @@ export default function HomeScreen() {
         <Text style={styles.summarySubtext}>Total spent this month</Text>
       </View>
 
+      {/* Search Bar */}
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+
+      {/* Category Filter */}
+      <CategoryFilter
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+      />
+
+      {/* Filter result count */}
+      {isFiltering && (
+        <Text style={styles.filterCount}>
+          {filteredTransactions.length}{" "}
+          {filteredTransactions.length === 1 ? "result" : "results"} found
+        </Text>
+      )}
+
       {/* Transaction List */}
       {transactions.length === 0 ? (
         <View style={styles.emptyState}>
@@ -126,14 +174,22 @@ export default function HomeScreen() {
             Tap the + button to add your first expense
           </Text>
         </View>
+      ) : filteredTransactions.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>🔍</Text>
+          <Text style={styles.emptyTitle}>No matches found</Text>
+          <Text style={styles.emptySubtext}>
+            Try a different search or category
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={transactions}
+          data={filteredTransactions}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => {
-            // Show date header when date changes
             const showDateHeader =
-              index === 0 || transactions[index - 1].date !== item.date;
+              index === 0 ||
+              filteredTransactions[index - 1].date !== item.date;
 
             return (
               <View>
@@ -221,6 +277,12 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 4,
   },
+  filterCount: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginLeft: 20,
+    marginBottom: 8,
+  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 100,
@@ -264,12 +326,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    // Shadow for iOS
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    // Shadow for Android
     elevation: 8,
   },
   fabText: {
