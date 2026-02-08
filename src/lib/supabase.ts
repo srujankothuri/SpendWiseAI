@@ -16,8 +16,8 @@ import * as SecureStore from "expo-secure-store";
 
 // ⚠️ REPLACE THESE with your actual Supabase project values
 // from Settings → API in your Supabase dashboard
-const SUPABASE_URL = "https://oyrjwxojwvycosmiaakj.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95cmp3eG9qd3Z5Y29zbWlhYWtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MTA2MjIsImV4cCI6MjA4NjA4NjYyMn0.xoNTg_6-fFIWPUnlUx1xsYIcIzFZBjb1aBcDDUinAwE";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Custom storage adapter using expo-secure-store
 // This tells Supabase to store auth tokens securely
