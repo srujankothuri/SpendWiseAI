@@ -13,9 +13,10 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "../src/lib/supabase";
 import { addTransaction } from "../src/lib/transactions";
+import { getBudgetProgress } from "../src/lib/budgets";
 import { categorizeExpense, extractMerchant, smartCategorize } from "../src/utils/categorize";
 import { learnCategory } from "../src/utils/learnedCategories";
-import { getToday } from "../src/utils/date";
+import { getToday, getCurrentMonth } from "../src/utils/date";
 import { DEFAULT_CATEGORIES } from "../src/constants/categories";
 import { COLORS } from "../src/constants/colors";
 
@@ -129,6 +130,28 @@ export default function AddTransactionScreen() {
       // learn from the correction so next time we get it right
       if (category !== autoCategory) {
         await learnCategory(description, merchant, category);
+      }
+
+      // Check if this transaction pushed any budget past its limit
+      const budgetProgress = await getBudgetProgress(user.id, getCurrentMonth());
+      const affectedBudget = budgetProgress.find(
+        (bp: any) => bp.category === category
+      );
+
+      if (affectedBudget) {
+        if (affectedBudget.percentage >= 100) {
+          Alert.alert(
+            "⚠️ Budget Exceeded!",
+            `You've gone over your ${category} budget!\n\nSpent: ${affectedBudget.spent.toFixed(2)} / ${Number(affectedBudget.monthly_limit).toFixed(2)}`,
+            [{ text: "Got it" }]
+          );
+        } else if (affectedBudget.percentage >= 80) {
+          Alert.alert(
+            "⚡ Budget Warning",
+            `You've used ${affectedBudget.percentage}% of your ${category} budget.\n\n${(affectedBudget.remaining).toFixed(2)} remaining this month.`,
+            [{ text: "OK" }]
+          );
+        }
       }
 
       // Go back to home screen

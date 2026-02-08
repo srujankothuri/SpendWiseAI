@@ -1,38 +1,531 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  Share,
+} from "react-native";
+import { useFocusEffect } from "expo-router";
+import { supabase } from "../../src/lib/supabase";
+import {
+  getAllLearnedCategories,
+  clearLearnedCategories,
+} from "../../src/utils/learnedCategories";
+import { COLORS } from "../../src/constants/colors";
 
-// Settings screen - app configuration.
-// Will contain:
-//   - Profile info & logout
-//   - Dark/Light mode toggle
-//   - Currency selector
-//   - Export data (CSV/PDF)
-//   - Notification preferences
-//   - About & version info
+// ============================================
+// SETTINGS SCREEN (Enhanced)
+// ============================================
+// Sections:
+//   1. Profile — user info + avatar
+//   2. Your Stats — lifetime spending stats
+//   3. Smart Features — learned categories info
+//   4. Data — export, clear data
+//   5. About — version, tech stack
+//   6. Logout
 
 export default function SettingsScreen() {
+  const [userEmail, setUserEmail] = useState("");
+  const [userName, setUserName] = useState("");
+  const [learnedCount, setLearnedCount] = useState(0);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
+  const [memberSince, setMemberSince] = useState("");
+  const [topCategory, setTopCategory] = useState("");
+
+  const loadData = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setUserEmail(user.email || "");
+    setUserName(user.user_metadata?.name || "");
+
+    // Member since
+    const created = new Date(user.created_at);
+    setMemberSince(
+      created.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    );
+
+    // Lifetime stats
+    const { data: transactions } = await supabase
+      .from("transactions")
+      .select("amount, category")
+      .eq("user_id", user.id);
+
+    if (transactions) {
+      setTotalTransactions(transactions.length);
+      const total = transactions.reduce(
+        (sum: number, t: { amount: number }) => sum + Number(t.amount),
+        0
+      );
+      setTotalSpent(total);
+
+      // Find top category
+      const catCounts: Record<string, number> = {};
+      transactions.forEach((t: { category: string; amount: number }) => {
+        catCounts[t.category] =
+          (catCounts[t.category] || 0) + Number(t.amount);
+      });
+      const sorted = Object.entries(catCounts).sort(
+        (a, b) => b[1] - a[1]
+      );
+      if (sorted.length > 0) {
+        setTopCategory(sorted[0][0]);
+      }
+    }
+
+    // Learned categories
+    const learned = await getAllLearnedCategories();
+    setLearnedCount(Object.keys(learned).length);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const handleLogout = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          setLoggingOut(true);
+          await supabase.auth.signOut();
+        },
+      },
+    ]);
+  };
+
+  const handleResetLearned = () => {
+    Alert.alert(
+      "Reset Learned Categories",
+      "This will clear all category corrections the app has learned. Auto-categorization will start fresh.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            await clearLearnedCategories();
+            setLearnedCount(0);
+            Alert.alert("Done", "Learned categories have been reset");
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearAllData = () => {
+    Alert.alert(
+      "Clear All Data",
+      "This will permanently delete ALL your transactions and budgets. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Everything",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) return;
+
+              await supabase
+                .from("transactions")
+                .delete()
+                .eq("user_id", user.id);
+              await supabase
+                .from("budgets")
+                .delete()
+                .eq("user_id", user.id);
+              await clearLearnedCategories();
+
+              setTotalTransactions(0);
+              setTotalSpent(0);
+              setTopCategory("");
+              setLearnedCount(0);
+
+              Alert.alert("Done", "All data has been cleared");
+            } catch (error) {
+              Alert.alert("Error", "Failed to clear data");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleShareApp = async () => {
+    try {
+      await Share.share({
+        message:
+          "Check out SpendWiseAI — an AI-powered expense tracker that learns your spending habits! 💰",
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>App settings coming soon</Text>
-    </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
+      {/* ===== PROFILE ===== */}
+      <View style={styles.section}>
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {userName
+                ? userName.charAt(0).toUpperCase()
+                : userEmail.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.profileInfo}>
+            {userName ? (
+              <Text style={styles.profileName}>{userName}</Text>
+            ) : null}
+            <Text style={styles.profileEmail}>{userEmail}</Text>
+            <Text style={styles.memberSince}>
+              Member since {memberSince}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ===== YOUR STATS ===== */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Your Stats</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{totalTransactions}</Text>
+            <Text style={styles.statLabel}>Transactions</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>
+              ${totalSpent.toFixed(0)}
+            </Text>
+            <Text style={styles.statLabel}>Total Tracked</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>
+              {totalTransactions > 0
+                ? "$" + (totalSpent / totalTransactions).toFixed(0)
+                : "$0"}
+            </Text>
+            <Text style={styles.statLabel}>Avg per Entry</Text>
+          </View>
+        </View>
+        {topCategory ? (
+          <View style={styles.topCategoryCard}>
+            <Text style={styles.topCategoryLabel}>
+              Top spending category
+            </Text>
+            <Text style={styles.topCategoryValue}>{topCategory}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* ===== SMART FEATURES ===== */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Smart Features</Text>
+
+        <View style={styles.settingCard}>
+          <Text style={styles.settingIcon}>🧠</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Learned Categories</Text>
+            <Text style={styles.settingDescription}>
+              {learnedCount === 0
+                ? "No corrections learned yet. When you fix a wrong category, the app remembers it."
+                : `${learnedCount} correction${learnedCount > 1 ? "s" : ""} remembered. The app is learning your habits!`}
+            </Text>
+          </View>
+        </View>
+
+        {learnedCount > 0 && (
+          <TouchableOpacity
+            style={styles.textButton}
+            onPress={handleResetLearned}
+          >
+            <Text style={styles.textButtonWarning}>
+              Reset Learned Categories
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.settingCard}>
+          <Text style={styles.settingIcon}>📊</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Auto-Categorization</Text>
+            <Text style={styles.settingDescription}>
+              3-layer system: Learned corrections → Keyword matching → AI
+              fallback
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ===== DATA MANAGEMENT ===== */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Data</Text>
+
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={handleShareApp}
+        >
+          <Text style={styles.settingIcon}>📤</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Share SpendWiseAI</Text>
+            <Text style={styles.settingDescription}>
+              Tell your friends about the app
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={handleClearAllData}
+        >
+          <Text style={styles.settingIcon}>🗑️</Text>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingLabel, { color: COLORS.danger }]}>
+              Clear All Data
+            </Text>
+            <Text style={styles.settingDescription}>
+              Delete all transactions, budgets, and learned data
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ===== ABOUT ===== */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About</Text>
+
+        <View style={styles.settingCard}>
+          <Text style={styles.settingIcon}>📱</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>SpendWiseAI</Text>
+            <Text style={styles.settingDescription}>Version 1.0.0</Text>
+          </View>
+        </View>
+
+        <View style={styles.settingCard}>
+          <Text style={styles.settingIcon}>⚡</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Tech Stack</Text>
+            <Text style={styles.settingDescription}>
+              React Native • Expo • TypeScript • Supabase • Gemini AI
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.settingCard}>
+          <Text style={styles.settingIcon}>👨‍💻</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Built By</Text>
+            <Text style={styles.settingDescription}>
+              Venkata Srujan Kothuri
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ===== LOGOUT ===== */}
+      <TouchableOpacity
+        style={styles.logoutButton}
+        onPress={handleLogout}
+        disabled={loggingOut}
+      >
+        <Text style={styles.logoutText}>
+          {loggingOut ? "Signing out..." : "Sign Out"}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    padding: 16,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+
+  // Profile
+  profileCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1a1a2e",
+    marginRight: 16,
   },
-  title: {
-    fontSize: 28,
+  avatarText: {
+    fontSize: 26,
     fontWeight: "bold",
-    color: "#e94560",
+    color: "#ffffff",
   },
-  subtitle: {
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  profileEmail: {
     fontSize: 14,
-    color: "#eaeaea",
-    marginTop: 8,
+    color: COLORS.textSecondary,
+  },
+  memberSince: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+
+  // Stats
+  statsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  topCategoryCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  topCategoryLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  topCategoryValue: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+
+  // Settings cards
+  settingCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    marginBottom: 8,
+  },
+  settingIcon: {
+    fontSize: 24,
+    marginRight: 14,
+  },
+  settingInfo: {
+    flex: 1,
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  settingDescription: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  chevron: {
+    fontSize: 22,
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+  },
+
+  // Buttons
+  textButton: {
+    padding: 12,
+    alignItems: "center",
+  },
+  textButtonWarning: {
+    color: COLORS.warning,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  logoutButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+  logoutText: {
+    color: COLORS.danger,
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
