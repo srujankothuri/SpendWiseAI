@@ -1,24 +1,20 @@
 import { DEFAULT_CATEGORIES } from "../constants/categories";
+import { getLearnedCategory } from "./learnedCategories";
 
 // ============================================
-// AUTO-CATEGORIZATION ENGINE
+// AUTO-CATEGORIZATION ENGINE (3-Layer System)
 // ============================================
-// This is the LOCAL smart categorization system.
-// No API calls needed — it runs entirely on the device.
+// Layer 1: User's past corrections (learned mappings)
+//   → Highest priority. If user corrected before, use that.
+// Layer 2: Keyword matching with fuzzy matching
+//   → Covers common merchants and terms.
+// Layer 3: Gemini AI (built in Phase 5)
+//   → Handles everything else.
 //
-// How it works:
-// 1. Takes the user's expense description (e.g. "coffee at starbucks")
-// 2. Converts to lowercase and splits into words
-// 3. Checks each word against every category's keyword list
-// 4. Returns the best matching category
-//
-// It also does fuzzy matching — if you type "starbuks"
-// (misspelled), it can still match "starbucks" using
-// a simple similarity score (Levenshtein-lite approach).
-//
-// In interviews, you can explain this as:
-// "I built a keyword-based classification engine with
-//  fuzzy matching for typo tolerance"
+// This layered approach means:
+// - Most requests never hit an API (fast + free)
+// - The app gets smarter over time per user
+// - AI is only used as a last resort
 
 // Calculate similarity between two strings (0 to 1)
 // Uses a simplified approach: checks if one string
@@ -139,4 +135,33 @@ export function extractMerchant(description: string): string {
   }
 
   return "";
+}
+
+// Smart categorization — checks all layers in order
+// This is the main function components should use.
+// It's async because Layer 1 reads from SecureStore.
+export async function smartCategorize(description: string): Promise<{
+  category: string;
+  confidence: number;
+  source: "learned" | "keyword" | "default";
+}> {
+  if (!description || description.trim().length < 2) {
+    return { category: "Other", confidence: 0, source: "default" };
+  }
+
+  // Layer 1: Check learned corrections
+  const learned = await getLearnedCategory(description);
+  if (learned) {
+    return { category: learned, confidence: 1, source: "learned" };
+  }
+
+  // Layer 2: Keyword matching
+  const keywordResult = categorizeExpense(description);
+  if (keywordResult.confidence > 0.5) {
+    return { ...keywordResult, source: "keyword" };
+  }
+
+  // No match — default to Other
+  // Layer 3 (Gemini AI) will be added in Phase 5
+  return { category: "Other", confidence: 0, source: "default" };
 }

@@ -13,7 +13,8 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "../src/lib/supabase";
 import { addTransaction } from "../src/lib/transactions";
-import { categorizeExpense, extractMerchant } from "../src/utils/categorize";
+import { categorizeExpense, extractMerchant, smartCategorize } from "../src/utils/categorize";
+import { learnCategory } from "../src/utils/learnedCategories";
 import { getToday } from "../src/utils/date";
 import { DEFAULT_CATEGORIES } from "../src/constants/categories";
 import { COLORS } from "../src/constants/colors";
@@ -41,6 +42,8 @@ export default function AddTransactionScreen() {
   const [date, setDate] = useState(getToday());
   const [loading, setLoading] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [autoCategory, setAutoCategory] = useState("Other"); // what the engine suggested
+  const [categorySource, setCategorySource] = useState<"learned" | "keyword" | "default">("default");
 
   // Refs for jumping between fields on "return" key
   const descriptionRef = useRef<TextInput>(null);
@@ -48,14 +51,19 @@ export default function AddTransactionScreen() {
   const dateRef = useRef<TextInput>(null);
 
   // Auto-categorize as user types description
-  // This is the smart local engine in action —
-  // it runs on every keystroke with no API call
+  // Uses the 3-layer smart system:
+  //   1. Check learned corrections first
+  //   2. Keyword matching
+  //   3. Default to "Other" (AI in Phase 5)
   useEffect(() => {
     if (description.length > 2) {
-      const result = categorizeExpense(description);
-      if (result.confidence > 0.5) {
-        setCategory(result.category);
-      }
+      smartCategorize(description).then((result) => {
+        if (result.confidence > 0.5) {
+          setCategory(result.category);
+          setAutoCategory(result.category);
+          setCategorySource(result.source);
+        }
+      });
 
       const extractedMerchant = extractMerchant(description);
       if (extractedMerchant && !merchant) {
@@ -116,6 +124,12 @@ export default function AddTransactionScreen() {
         merchant: merchant.trim(),
         date,
       });
+
+      // If user changed the category from what was auto-detected,
+      // learn from the correction so next time we get it right
+      if (category !== autoCategory) {
+        await learnCategory(description, merchant, category);
+      }
 
       // Go back to home screen
       router.back();
@@ -179,7 +193,9 @@ export default function AddTransactionScreen() {
           />
           {description.length > 2 && (
             <Text style={styles.autoDetect}>
-              Auto-detected: {category} ✨
+              {categorySource === "learned"
+                ? `Remembered: ${category} 🧠`
+                : `Auto-detected: ${category} ✨`}
             </Text>
           )}
         </View>
