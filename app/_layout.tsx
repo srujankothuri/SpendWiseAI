@@ -32,7 +32,6 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
-    // Allow modal screens to stay open without redirect
     const inModal = segments[0] === "add-transaction" || segments[0] === "edit-transaction" || segments[0] === "set-budget" || segments[0] === "ai-entry" || segments[0] === "add-category" || segments[0] === "import-csv";
 
     if (session && !inTabsGroup && !inModal) {
@@ -57,48 +56,12 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="index" />
-        <Stack.Screen
-          name="add-transaction"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="edit-transaction"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="set-budget"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="ai-entry"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="add-category"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="import-csv"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />
+        <Stack.Screen name="add-transaction" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="edit-transaction" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="set-budget" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="ai-entry" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="add-category" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="import-csv" options={{ presentation: "modal", headerShown: false }} />
       </Stack>
     </>
   );

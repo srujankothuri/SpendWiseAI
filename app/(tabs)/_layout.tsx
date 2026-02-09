@@ -1,24 +1,6 @@
 import { Tabs } from "expo-router";
 import { View, Text, StyleSheet } from "react-native";
 
-// ============================================
-// TAB LAYOUT WITH BRANDED HEADER
-// ============================================
-// Custom header shows "SpendWiseAI" on every tab screen.
-// The headerTitle function lets us render custom JSX
-// instead of plain text — so we can style the "AI"
-// part differently for branding.
-
-function AppHeader() {
-  return (
-    <View style={styles.headerContainer}>
-      <Text style={styles.headerText}>
-        SpendWise<Text style={styles.headerHighlight}>AI</Text>
-      </Text>
-    </View>
-  );
-}
-
 export default function TabsLayout() {
   return (
     <Tabs
@@ -32,7 +14,13 @@ export default function TabsLayout() {
           elevation: 4,
         },
         headerTintColor: "#eaeaea",
-        headerTitle: () => <AppHeader />,
+        headerTitle: () => (
+          <View style={styles.headerContainer}>
+            <Text style={styles.headerText}>
+              SpendWise<Text style={styles.headerHighlight}>AI</Text>
+            </Text>
+          </View>
+        ),
         tabBarStyle: {
           backgroundColor: "#16213e",
           borderTopColor: "#0f3460",
@@ -92,6 +80,5 @@ const styles = StyleSheet.create({
   },
   headerHighlight: {
     color: "#e94560",
-    fontWeight: "bold",
   },
 });

@@ -14,12 +14,15 @@ import {
   getRecentTransactions,
   getMonthlyTotal,
   deleteTransaction,
+  getTransactionsByMonth,
 } from "../../src/lib/transactions";
 import {
   getCurrentMonth,
   formatMonth,
   formatCurrency,
   formatDateGroup,
+  getPreviousMonth,
+  getNextMonth,
 } from "../../src/utils/date";
 import TransactionCard from "../../src/components/TransactionCard";
 import SearchBar from "../../src/components/SearchBar";
@@ -50,8 +53,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
-  const currentMonth = getCurrentMonth();
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
   const fetchData = async () => {
     try {
@@ -61,8 +63,8 @@ export default function HomeScreen() {
       if (!user) return;
 
       const [txns, total] = await Promise.all([
-        getRecentTransactions(user.id, 50),
-        getMonthlyTotal(user.id, currentMonth),
+        getTransactionsByMonth(user.id, selectedMonth),
+        getMonthlyTotal(user.id, selectedMonth),
       ]);
 
       setTransactions(txns);
@@ -78,8 +80,16 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchData();
-    }, [])
+    }, [selectedMonth])
   );
+
+  const goToPrevMonth = () => setSelectedMonth(getPreviousMonth(selectedMonth));
+  const goToNextMonth = () => {
+    const next = getNextMonth(selectedMonth);
+    if (next <= getCurrentMonth()) {
+      setSelectedMonth(next);
+    }
+  };
 
   // Filter transactions based on search query AND category
   // useMemo ensures this only recalculates when dependencies change,
@@ -115,7 +125,7 @@ export default function HomeScreen() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const total = await getMonthlyTotal(user.id, currentMonth);
+        const total = await getMonthlyTotal(user.id, selectedMonth);
         setMonthlyTotal(total);
       }
     } catch (error) {
@@ -141,9 +151,27 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Monthly Summary Card */}
+      {/* Month Navigator + Summary */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>{formatMonth(currentMonth)}</Text>
+        <View style={styles.monthNav}>
+          <TouchableOpacity onPress={goToPrevMonth}>
+            <Text style={styles.navArrow}>◀</Text>
+          </TouchableOpacity>
+          <Text style={styles.summaryLabel}>{formatMonth(selectedMonth)}</Text>
+          <TouchableOpacity
+            onPress={goToNextMonth}
+            disabled={selectedMonth === getCurrentMonth()}
+          >
+            <Text
+              style={[
+                styles.navArrow,
+                selectedMonth === getCurrentMonth() && { opacity: 0.3 },
+              ]}
+            >
+              ▶
+            </Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.summaryAmount}>
           {formatCurrency(monthlyTotal)}
         </Text>
@@ -273,6 +301,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.surfaceLight,
+  },
+  monthNav: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 8,
+  },
+  navArrow: {
+    fontSize: 18,
+    color: COLORS.primary,
+    padding: 4,
   },
   summaryLabel: {
     fontSize: 14,

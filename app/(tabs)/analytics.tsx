@@ -77,6 +77,7 @@ export default function AnalyticsScreen() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0);
   const [categoryPredictions, setCategoryPredictions] = useState<any[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<number[]>([]);
+  const [trendLabels, setTrendLabels] = useState<string[]>([]);
   const [aiInsights, setAiInsights] = useState<SpendingInsight | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -125,10 +126,22 @@ export default function AnalyticsScreen() {
         .sort((a, b) => Number(a.day) - Number(b.day));
       setDailySpending(dailyArr);
 
-      // Monthly trend — last 3 months including current
-      const twoMonthsAgo = getPreviousMonth(prevMonth);
-      const twoMonthsAgoTotal = await getMonthlyTotal(user.id, twoMonthsAgo);
-      setMonthlyTrend([twoMonthsAgoTotal, prevTotal, curTotal]);
+      // Monthly trend — last 6 months
+      const months: string[] = [];
+      const totals: number[] = [];
+      let trendMonth = selectedMonth;
+      for (let i = 0; i < 6; i++) {
+        months.unshift(trendMonth);
+        const total = await getMonthlyTotal(user.id, trendMonth);
+        totals.unshift(total);
+        trendMonth = getPreviousMonth(trendMonth);
+      }
+      setMonthlyTrend(totals);
+
+      // Build line chart labels from months
+      setTrendLabels(
+        months.map((m) => formatMonth(m).split(" ")[0].slice(0, 3))
+      );
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {
@@ -202,36 +215,6 @@ export default function AnalyticsScreen() {
       legendFontSize: 11,
     };
   });
-
-  // Prepare bar chart data
-  const barData = {
-    labels: dailySpending.slice(-7).map((d) => d.day),
-    datasets: [
-      {
-        data:
-          dailySpending.slice(-7).map((d) => d.amount).length > 0
-            ? dailySpending.slice(-7).map((d) => d.amount)
-            : [0],
-      },
-    ],
-  };
-
-  // Prepare line chart data — monthly trend
-  const prevMonth = getPreviousMonth(selectedMonth);
-  const twoMonthsAgo = getPreviousMonth(prevMonth);
-  const lineData = {
-    labels: [
-      formatMonth(twoMonthsAgo).split(" ")[0].slice(0, 3),
-      formatMonth(prevMonth).split(" ")[0].slice(0, 3),
-      formatMonth(selectedMonth).split(" ")[0].slice(0, 3),
-    ],
-    datasets: [
-      {
-        data: monthlyTrend.length > 0 ? monthlyTrend.map((v) => v || 0) : [0, 0, 0],
-        strokeWidth: 3,
-      },
-    ],
-  };
 
   // Month-over-month change
   const monthChange =
@@ -375,20 +358,32 @@ export default function AnalyticsScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Daily Spending</Text>
               <View style={styles.chartCard}>
-                <BarChart
-                  data={barData}
-                  width={screenWidth - 64}
-                  height={200}
-                  chartConfig={{
-                    ...chartConfig,
-                    barPercentage: 0.6,
-                  }}
-                  yAxisLabel="$"
-                  yAxisSuffix=""
-                  fromZero
-                  showValuesOnTopOfBars
-                  style={styles.chart}
-                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                >
+                  <BarChart
+                    data={{
+                      labels: dailySpending.map((d) => d.day),
+                      datasets: [
+                        {
+                          data: dailySpending.map((d) => d.amount),
+                        },
+                      ],
+                    }}
+                    width={Math.max(screenWidth - 64, dailySpending.length * 50)}
+                    height={200}
+                    chartConfig={{
+                      ...chartConfig,
+                      barPercentage: 0.6,
+                    }}
+                    yAxisLabel="$"
+                    yAxisSuffix=""
+                    fromZero
+                    showValuesOnTopOfBars
+                    style={styles.chart}
+                  />
+                </ScrollView>
               </View>
             </View>
           )}
@@ -398,20 +393,33 @@ export default function AnalyticsScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Monthly Trend</Text>
               <View style={styles.chartCard}>
-                <LineChart
-                  data={lineData}
-                  width={screenWidth - 64}
-                  height={200}
-                  chartConfig={{
-                    ...chartConfig,
-                    color: (opacity = 1) => `rgba(233, 69, 96, ${opacity})`,
-                  }}
-                  yAxisLabel="$"
-                  yAxisSuffix=""
-                  fromZero
-                  bezier
-                  style={styles.chart}
-                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                >
+                  <LineChart
+                    data={{
+                      labels: trendLabels,
+                      datasets: [
+                        {
+                          data: monthlyTrend.map((v) => v || 0),
+                          strokeWidth: 3,
+                        },
+                      ],
+                    }}
+                    width={Math.max(screenWidth - 64, trendLabels.length * 60)}
+                    height={200}
+                    chartConfig={{
+                      ...chartConfig,
+                      color: (opacity = 1) => `rgba(233, 69, 96, ${opacity})`,
+                    }}
+                    yAxisLabel="$"
+                    yAxisSuffix=""
+                    fromZero
+                    bezier
+                    style={styles.chart}
+                  />
+                </ScrollView>
               </View>
             </View>
           )}

@@ -34,6 +34,8 @@ export default function SettingsScreen() {
   const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
   const [learnedCount, setLearnedCount] = useState(0);
+  const [learnedMappings, setLearnedMappings] = useState<Record<string, string>>({});
+  const [showLearnedDetails, setShowLearnedDetails] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [totalTransactions, setTotalTransactions] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
@@ -92,6 +94,7 @@ export default function SettingsScreen() {
     // Learned categories
     const learned = await getAllLearnedCategories();
     setLearnedCount(Object.keys(learned).length);
+    setLearnedMappings(learned);
 
     // Custom categories
     const custom = await getCustomCategories();
@@ -301,17 +304,46 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Smart Features</Text>
 
-        <View style={styles.settingCard}>
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={() => setShowLearnedDetails(!showLearnedDetails)}
+        >
           <Text style={styles.settingIcon}>🧠</Text>
           <View style={styles.settingInfo}>
             <Text style={styles.settingLabel}>Learned Categories</Text>
             <Text style={styles.settingDescription}>
               {learnedCount === 0
                 ? "No corrections learned yet. When you fix a wrong category, the app remembers it."
-                : `${learnedCount} correction${learnedCount > 1 ? "s" : ""} remembered. The app is learning your habits!`}
+                : `${learnedCount} correction${learnedCount > 1 ? "s" : ""} remembered. Tap to view.`}
             </Text>
           </View>
-        </View>
+          {learnedCount > 0 && (
+            <Text style={styles.chevron}>
+              {showLearnedDetails ? "▲" : "▼"}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Learned mappings detail view */}
+        {showLearnedDetails && learnedCount > 0 && (
+          <View style={styles.learnedDetailsCard}>
+            {Object.entries(learnedMappings).map(([key, value], index) => (
+              <View
+                key={index}
+                style={[
+                  styles.learnedRow,
+                  index < Object.keys(learnedMappings).length - 1 && styles.learnedRowBorder,
+                ]}
+              >
+                <Text style={styles.learnedKey} numberOfLines={1}>
+                  "{key}"
+                </Text>
+                <Text style={styles.learnedArrow}>→</Text>
+                <Text style={styles.learnedValue}>{value}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {learnedCount > 0 && (
           <TouchableOpacity
@@ -719,6 +751,40 @@ const styles = StyleSheet.create({
     color: COLORS.warning,
     fontSize: 14,
     fontWeight: "600",
+  },
+  learnedDetailsCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  learnedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  learnedRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.surfaceLight,
+  },
+  learnedKey: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
+  },
+  learnedArrow: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginHorizontal: 8,
+  },
+  learnedValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   logoutButton: {
     backgroundColor: "transparent",
