@@ -1,25 +1,23 @@
 import { ScrollView, TouchableOpacity, Text, StyleSheet } from "react-native";
-import { DEFAULT_CATEGORIES } from "../constants/categories";
+import { Category } from "../types";
 import { COLORS } from "../constants/colors";
 
 // ============================================
 // CATEGORY FILTER COMPONENT
 // ============================================
-// Horizontally scrollable chips for filtering
-// transactions by category. "All" is the default.
-//
-// ScrollView with horizontal={true} creates the
-// swipeable row — common pattern in mobile apps
-// for filter bars (think Netflix genre row).
+// Now accepts categories as a prop so it works
+// with both default and custom categories.
 
 interface CategoryFilterProps {
-  selected: string | null; // null means "All"
+  selected: string | null;
   onSelect: (category: string | null) => void;
+  categories: Category[];
 }
 
 export default function CategoryFilter({
   selected,
   onSelect,
+  categories,
 }: CategoryFilterProps) {
   return (
     <ScrollView
@@ -47,7 +45,7 @@ export default function CategoryFilter({
       </TouchableOpacity>
 
       {/* Category chips */}
-      {DEFAULT_CATEGORIES.filter((c) => c.id !== "other").map((cat) => (
+      {categories.filter((c) => c.id !== "other").map((cat) => (
         <TouchableOpacity
           key={cat.id}
           style={[

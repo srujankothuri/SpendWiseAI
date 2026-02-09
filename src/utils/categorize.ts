@@ -1,5 +1,6 @@
 import { DEFAULT_CATEGORIES } from "../constants/categories";
 import { getLearnedCategory } from "./learnedCategories";
+import { getAllCategories } from "./customCategories";
 
 // ============================================
 // AUTO-CATEGORIZATION ENGINE (3-Layer System)
@@ -8,13 +9,9 @@ import { getLearnedCategory } from "./learnedCategories";
 //   → Highest priority. If user corrected before, use that.
 // Layer 2: Keyword matching with fuzzy matching
 //   → Covers common merchants and terms.
-// Layer 3: Gemini AI (built in Phase 5)
+//   → Includes both default AND custom categories.
+// Layer 3: Groq AI (built in Phase 5)
 //   → Handles everything else.
-//
-// This layered approach means:
-// - Most requests never hit an API (fast + free)
-// - The app gets smarter over time per user
-// - AI is only used as a last resort
 
 // Calculate similarity between two strings (0 to 1)
 // Uses a simplified approach: checks if one string
@@ -155,13 +152,37 @@ export async function smartCategorize(description: string): Promise<{
     return { category: learned, confidence: 1, source: "learned" };
   }
 
-  // Layer 2: Keyword matching
+  // Layer 2: Keyword matching (default + custom categories)
+  // First check default categories
   const keywordResult = categorizeExpense(description);
   if (keywordResult.confidence > 0.5) {
     return { ...keywordResult, source: "keyword" };
   }
 
+  // Also check custom categories
+  try {
+    const allCats = await getAllCategories();
+    const customCats = allCats.filter(
+      (c) => c.id.startsWith("custom_") && c.keywords.length > 0
+    );
+
+    const words = description.toLowerCase().split(/\s+/);
+    for (const cat of customCats) {
+      for (const keyword of cat.keywords) {
+        if (keyword.length < 3) continue;
+        if (description.toLowerCase().includes(keyword)) {
+          return { category: cat.name, confidence: 0.9, source: "keyword" };
+        }
+        for (const word of words) {
+          if (word.length < 3) continue;
+          if (word === keyword) {
+            return { category: cat.name, confidence: 1, source: "keyword" };
+          }
+        }
+      }
+    }
+  } catch {}
+
   // No match — default to Other
-  // Layer 3 (Gemini AI) will be added in Phase 5
   return { category: "Other", confidence: 0, source: "default" };
 }

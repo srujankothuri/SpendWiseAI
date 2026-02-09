@@ -25,6 +25,7 @@ import TransactionCard from "../../src/components/TransactionCard";
 import SearchBar from "../../src/components/SearchBar";
 import CategoryFilter from "../../src/components/CategoryFilter";
 import { Transaction } from "../../src/types";
+import { useCategories } from "../../src/hooks/useCategories";
 import { COLORS } from "../../src/constants/colors";
 
 // ============================================
@@ -42,6 +43,7 @@ import { COLORS } from "../../src/constants/colors";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { categories } = useCategories();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -155,6 +157,7 @@ export default function HomeScreen() {
       <CategoryFilter
         selected={selectedCategory}
         onSelect={setSelectedCategory}
+        categories={categories}
       />
 
       {/* Filter result count */}

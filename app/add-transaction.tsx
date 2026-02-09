@@ -19,6 +19,7 @@ import { categorizeExpense, extractMerchant, smartCategorize } from "../src/util
 import { learnCategory } from "../src/utils/learnedCategories";
 import { getToday, getCurrentMonth } from "../src/utils/date";
 import { DEFAULT_CATEGORIES } from "../src/constants/categories";
+import { useCategories } from "../src/hooks/useCategories";
 import { COLORS } from "../src/constants/colors";
 
 // ============================================
@@ -36,6 +37,7 @@ import { COLORS } from "../src/constants/colors";
 
 export default function AddTransactionScreen() {
   const router = useRouter();
+  const { categories } = useCategories();
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -208,7 +210,7 @@ export default function AddTransactionScreen() {
             onPress={() => setShowCategories(!showCategories)}
           >
             <Text style={styles.categoryButtonText}>
-              {DEFAULT_CATEGORIES.find((c) => c.name === category)?.icon}{" "}
+              {categories.find((c) => c.name === category)?.icon || "📦"}{" "}
               {category}
             </Text>
             <Text style={styles.chevron}>
@@ -218,7 +220,7 @@ export default function AddTransactionScreen() {
 
           {showCategories && (
             <View style={styles.categoryGrid}>
-              {DEFAULT_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
                   style={[

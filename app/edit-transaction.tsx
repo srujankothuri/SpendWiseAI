@@ -15,6 +15,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { updateTransaction, deleteTransaction } from "../src/lib/transactions";
 import { getToday } from "../src/utils/date";
 import { DEFAULT_CATEGORIES } from "../src/constants/categories";
+import { useCategories } from "../src/hooks/useCategories";
 import { COLORS } from "../src/constants/colors";
 
 // ============================================
@@ -30,6 +31,7 @@ import { COLORS } from "../src/constants/colors";
 
 export default function EditTransactionScreen() {
   const router = useRouter();
+  const { categories } = useCategories();
   const params = useLocalSearchParams<{
     id: string;
     amount: string;
@@ -163,7 +165,7 @@ export default function EditTransactionScreen() {
             onPress={() => setShowCategories(!showCategories)}
           >
             <Text style={styles.categoryButtonText}>
-              {DEFAULT_CATEGORIES.find((c) => c.name === category)?.icon}{" "}
+              {categories.find((c) => c.name === category)?.icon || "📦"}{" "}
               {category}
             </Text>
             <Text style={styles.chevron}>
@@ -173,7 +175,7 @@ export default function EditTransactionScreen() {
 
           {showCategories && (
             <View style={styles.categoryGrid}>
-              {DEFAULT_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
                   style={[

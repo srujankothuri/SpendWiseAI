@@ -8,12 +8,14 @@ import {
   ScrollView,
   Share,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { supabase } from "../../src/lib/supabase";
 import {
   getAllLearnedCategories,
   clearLearnedCategories,
 } from "../../src/utils/learnedCategories";
+import { getCustomCategories, deleteCustomCategory, clearCustomCategories } from "../../src/utils/customCategories";
+import { exportTransactionsToCSV } from "../../src/utils/exportImport";
 import { COLORS } from "../../src/constants/colors";
 
 // ============================================
@@ -28,6 +30,7 @@ import { COLORS } from "../../src/constants/colors";
 //   6. Logout
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
   const [learnedCount, setLearnedCount] = useState(0);
@@ -36,6 +39,8 @@ export default function SettingsScreen() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [memberSince, setMemberSince] = useState("");
   const [topCategory, setTopCategory] = useState("");
+  const [customCats, setCustomCats] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const loadData = async () => {
     const {
@@ -87,6 +92,10 @@ export default function SettingsScreen() {
     // Learned categories
     const learned = await getAllLearnedCategories();
     setLearnedCount(Object.keys(learned).length);
+
+    // Custom categories
+    const custom = await getCustomCategories();
+    setCustomCats(custom);
   };
 
   useFocusEffect(
@@ -94,6 +103,52 @@ export default function SettingsScreen() {
       loadData();
     }, [])
   );
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false });
+
+      if (!data || data.length === 0) {
+        Alert.alert("No Data", "No transactions to export");
+        return;
+      }
+
+      await exportTransactionsToCSV(data);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to export");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteCustomCategory = (id: string, name: string) => {
+    Alert.alert(
+      "Delete Category",
+      `Remove "${name}"? Existing transactions with this category won't be affected.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteCustomCategory(id);
+            const custom = await getCustomCategories();
+            setCustomCats(custom);
+          },
+        },
+      ]
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -153,11 +208,13 @@ export default function SettingsScreen() {
                 .delete()
                 .eq("user_id", user.id);
               await clearLearnedCategories();
+              await clearCustomCategories();
 
               setTotalTransactions(0);
               setTotalSpent(0);
               setTopCategory("");
               setLearnedCount(0);
+              setCustomCats([]);
 
               Alert.alert("Done", "All data has been cleared");
             } catch (error) {
@@ -279,15 +336,106 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* ===== CUSTOM CATEGORIES ===== */}
+      <View style={styles.section}>
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionTitle}>
+            Custom Categories ({customCats.length})
+          </Text>
+          <TouchableOpacity
+            style={styles.addCatButton}
+            onPress={() => router.push("/add-category")}
+          >
+            <Text style={styles.addCatText}>+ New</Text>
+          </TouchableOpacity>
+        </View>
+
+        {customCats.length === 0 ? (
+          <View style={styles.settingCard}>
+            <Text style={styles.settingIcon}>🏷️</Text>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>No custom categories</Text>
+              <Text style={styles.settingDescription}>
+                Create your own categories for expenses that don't fit
+                the defaults
+              </Text>
+            </View>
+          </View>
+        ) : (
+          customCats.map((cat) => (
+            <View key={cat.id} style={styles.customCatCard}>
+              <View style={styles.customCatLeft}>
+                <Text style={styles.settingIcon}>{cat.icon}</Text>
+                <View style={styles.settingInfo}>
+                  <Text style={styles.settingLabel}>{cat.name}</Text>
+                  <Text style={styles.settingDescription}>
+                    {cat.keywords.length > 0
+                      ? `Keywords: ${cat.keywords.slice(0, 3).join(", ")}${cat.keywords.length > 3 ? "..." : ""}`
+                      : "No keywords set"}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.customCatRight}>
+                <View
+                  style={[
+                    styles.colorIndicator,
+                    { backgroundColor: cat.color },
+                  ]}
+                />
+                <TouchableOpacity
+                  onPress={() =>
+                    handleDeleteCustomCategory(cat.id, cat.name)
+                  }
+                  style={styles.deleteCatButton}
+                >
+                  <Text style={styles.deleteCatText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
       {/* ===== DATA MANAGEMENT ===== */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data</Text>
 
         <TouchableOpacity
           style={styles.settingCard}
-          onPress={handleShareApp}
+          onPress={handleExportCSV}
+          disabled={exporting}
         >
           <Text style={styles.settingIcon}>📤</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>
+              {exporting ? "Exporting..." : "Export to CSV"}
+            </Text>
+            <Text style={styles.settingDescription}>
+              Download all transactions as a CSV file
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={() => router.push("/import-csv")}
+        >
+          <Text style={styles.settingIcon}>📥</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Import from CSV</Text>
+            <Text style={styles.settingDescription}>
+              Upload a CSV file to add transactions in bulk
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={handleShareApp}
+        >
+          <Text style={styles.settingIcon}>🔗</Text>
           <View style={styles.settingInfo}>
             <Text style={styles.settingLabel}>Share SpendWiseAI</Text>
             <Text style={styles.settingDescription}>
@@ -379,6 +527,63 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 12,
+  },
+  sectionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addCatButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  addCatText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  colorIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  customCatCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+    marginBottom: 8,
+  },
+  customCatLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  customCatRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  deleteCatButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.danger + "20",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteCatText: {
+    color: COLORS.danger,
+    fontSize: 14,
+    fontWeight: "bold",
   },
 
   // Profile
