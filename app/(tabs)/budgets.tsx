@@ -17,6 +17,7 @@ import {
   getCurrentMonth,
   formatMonth,
   formatCurrency,
+  getPreviousMonth,
 } from "../../src/utils/date";
 import {
   detectRecurringExpenses,
@@ -54,13 +55,21 @@ export default function BudgetsScreen() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [progress, transactions] = await Promise.all([
+      const prevMonth = getPreviousMonth(currentMonth);
+      const twoMonthsAgo = getPreviousMonth(prevMonth);
+
+      const [progress, transactions, lastMonthTxns, twoMonthsAgoTxns] = await Promise.all([
         getBudgetProgress(user.id, currentMonth),
         getTransactionsByMonth(user.id, currentMonth),
+        getTransactionsByMonth(user.id, prevMonth),
+        getTransactionsByMonth(user.id, twoMonthsAgo),
       ]);
 
+      const lastMonthTotal = lastMonthTxns.reduce((s, t) => s + Number(t.amount), 0);
+      const twoMonthsAgoTotal = twoMonthsAgoTxns.reduce((s, t) => s + Number(t.amount), 0);
+
       setBudgetProgress(progress);
-      setPrediction(predictMonthlySpending(transactions, currentMonth));
+      setPrediction(predictMonthlySpending(transactions, currentMonth, lastMonthTotal, twoMonthsAgoTotal));
       setRecurringExpenses(detectRecurringExpenses(transactions));
     } catch (error) {
       console.error("Error fetching budget data:", error);

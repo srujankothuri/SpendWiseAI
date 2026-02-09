@@ -106,17 +106,19 @@ export function detectRecurringExpenses(
 }
 
 // ============================================
-// SPENDING PREDICTION
+// SPENDING PREDICTION (Improved)
 // ============================================
-// Predicts month-end spending based on current pace.
+// Uses a WEIGHTED approach combining:
+//   - Current month's pace (60% weight)
+//   - Last month's actual total (25% weight)
+//   - Two months ago actual total (15% weight)
 //
-// Uses a simple but effective approach:
-//   daily_average = total_spent_so_far / days_elapsed
-//   predicted_total = daily_average * total_days_in_month
+// This prevents wild predictions early in the month.
+// If it's Feb 2 and you spent $1200 on rent, pure pace
+// would predict $16,800/month. But blending with
+// historical data gives a much more realistic number.
 //
-// Also calculates comparison with last month.
-// This is a "simple moving average" approach —
-// basic but practical and easy to explain in interviews.
+// If no historical data exists, falls back to pure pace.
 
 interface SpendingPrediction {
   currentTotal: number;
@@ -129,36 +131,52 @@ interface SpendingPrediction {
 
 export function predictMonthlySpending(
   transactions: Transaction[],
-  month: string
+  month: string,
+  lastMonthTotal?: number,
+  twoMonthsAgoTotal?: number
 ): SpendingPrediction {
   const [year, mon] = month.split("-").map(Number);
   const totalDays = new Date(year, mon, 0).getDate();
 
-  // How many days have passed in this month
   const today = new Date();
-  let daysElapsed: number;
-
-  // Check if we're looking at the current month
   const currentMonth = `${today.getFullYear()}-${String(
     today.getMonth() + 1
   ).padStart(2, "0")}`;
 
+  let daysElapsed: number;
   if (month === currentMonth) {
     daysElapsed = today.getDate();
   } else {
-    // Past month — all days elapsed
     daysElapsed = totalDays;
   }
 
-  // Calculate total spending
   const currentTotal = transactions.reduce(
     (sum, t) => sum + Number(t.amount),
     0
   );
 
-  // Daily average and prediction
   const dailyAverage = daysElapsed > 0 ? currentTotal / daysElapsed : 0;
-  const predictedTotal = dailyAverage * totalDays;
+  const pacePrediction = dailyAverage * totalDays;
+
+  // Weighted prediction using historical data
+  let predictedTotal: number;
+
+  if (lastMonthTotal && lastMonthTotal > 0 && twoMonthsAgoTotal && twoMonthsAgoTotal > 0) {
+    // All three months available — weighted blend
+    predictedTotal =
+      pacePrediction * 0.6 +
+      lastMonthTotal * 0.25 +
+      twoMonthsAgoTotal * 0.15;
+  } else if (lastMonthTotal && lastMonthTotal > 0) {
+    // Only last month available
+    predictedTotal =
+      pacePrediction * 0.7 +
+      lastMonthTotal * 0.3;
+  } else {
+    // No history — pure pace
+    predictedTotal = pacePrediction;
+  }
+
   const daysRemaining = totalDays - daysElapsed;
 
   return {
