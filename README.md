@@ -17,10 +17,24 @@ An AI-powered cross-platform mobile app built with React Native, Expo, Supabase,
 
 ## 📱 Screenshots
 
-<!-- Replace with actual screenshots -->
-| Home | Analytics | Budgets | AI Entry |
-|------|-----------|---------|----------|
-| *coming soon* | *coming soon* | *coming soon* | *coming soon* |
+<p align="center">
+  <img src="assets/screenshots/demo1.jpeg" width="200" />
+  <img src="assets/screenshots/demo2.jpeg" width="200" />
+  <img src="assets/screenshots/demo3.jpeg" width="200" />
+  <img src="assets/screenshots/demo4.jpeg" width="200" />
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/demo5.jpeg" width="200" />
+  <img src="assets/screenshots/demo6.jpeg" width="200" />
+  <img src="assets/screenshots/demo7.jpeg" width="200" />
+  <img src="assets/screenshots/demo8.jpeg" width="200" />
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/demo9.jpeg" width="200" />
+  <img src="assets/screenshots/demo10.jpeg" width="200" />
+</p>
 
 ---
 
