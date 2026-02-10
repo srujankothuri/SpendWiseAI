@@ -1,132 +1,157 @@
-# SpendWiseAI 💰
+# 💰 SpendWiseAI
 
-> AI-powered expense tracking app that learns your spending habits
+**Smart expense tracking that learns your habits.**
 
-A cross-platform mobile app that combines smart auto-categorization, AI-powered natural language processing, visual analytics, and budget management to help users take control of their finances.
+An AI-powered cross-platform mobile app built with React Native, Expo, Supabase, and Groq AI. Track expenses effortlessly with auto-categorization that gets smarter over time, natural language entry, visual analytics, and intelligent spending predictions.
 
-**[Live on Google Play Store →](#)** *(link coming soon)*
+[![React Native](https://img.shields.io/badge/React_Native-0.76-blue?logo=react)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo_SDK-54-000020?logo=expo)](https://expo.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
----
-
-## Features
-
-### Smart Expense Tracking
-- Add, edit, and delete expenses with an intuitive interface
-- Native calendar date picker — prevents future and invalid dates
-- Real-time search across descriptions, merchants, and categories
-- Category filter chips for quick filtering
-- Month-by-month navigation to browse historical spending
-- CSV import and export for bulk data management
-
-### AI-Powered Natural Language Entry
-Type expenses in plain English — AI extracts the details automatically:
-- *"spent 15 bucks at chipotle yesterday"* → Amount: $15, Merchant: Chipotle, Category: Food & Drink, Date: yesterday
-- *"uber ride home $23.50"* → Amount: $23.50, Merchant: Uber, Category: Transport
-- All AI-parsed fields are editable before saving
-
-### Smart Auto-Categorization (3-Layer System)
-1. **Learned Corrections** — App remembers every time you fix a category and applies it automatically next time
-2. **Keyword Engine** — Fuzzy matching against category keywords with typo tolerance
-3. **AI Fallback** — Groq LLM handles anything the other layers can't
-
-The app gets smarter over time — most categorizations happen instantly without any API call.
-
-### Budget Management
-- Set monthly spending limits per category
-- Visual progress bars with color-coded status (green → orange → red)
-- Real-time alerts when spending hits 80% or exceeds 100% of budget
-- Spending forecast that separates fixed costs (rent, subscriptions) from daily variable spending for accurate predictions
-
-### Analytics Dashboard
-- **Pie Chart** — Spending breakdown by category with percentages
-- **Bar Chart** — Daily spending (horizontally scrollable)
-- **Line Chart** — 6-month spending trend
-- **Category Projections** — Per-category month-end predictions (fixed costs shown as-is, variable costs projected)
-- **AI Insights** — Personalized spending analysis with highlights, warnings, and saving tips
-- Month navigation with percentage comparison to previous month
-
-### Additional Features
-- Recurring expense auto-detection (weekly, biweekly, monthly patterns)
-- Custom category creation with emoji icons, colors, and keywords
-- Onboarding screens for first-time users
-- Secure authentication with session persistence
-- Profile stats and lifetime spending summary
-- Demo data loading for testing
-- Share app functionality
+<!-- Add Play Store badge once published -->
+<!-- [![Google Play](https://img.shields.io/badge/Google_Play-Download-414141?logo=google-play)](YOUR_LINK) -->
 
 ---
 
-## Tech Stack
+## 📱 Screenshots
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Framework | React Native + Expo SDK 54 | Cross-platform iOS & Android from single codebase |
-| Language | TypeScript | Type safety, better developer experience, fewer runtime errors |
-| Navigation | Expo Router | File-based routing — same pattern as Next.js |
-| Backend | Supabase (PostgreSQL) | Auth + database + Row Level Security in one platform |
-| AI | Groq API (Llama 3.1 8B) | Free tier with 14,400 requests/day, sub-second response times |
-| Charts | react-native-chart-kit | Pie, bar, and line charts with customizable styling |
-| Secure Storage | expo-secure-store | Encrypted on-device storage for tokens and user preferences |
-| Date Picker | @react-native-community/datetimepicker | Native calendar with max date constraints |
-| File Handling | expo-file-system + expo-sharing | CSV export/import with native share sheet |
+<!-- Replace with actual screenshots -->
+| Home | Analytics | Budgets | AI Entry |
+|------|-----------|---------|----------|
+| *coming soon* | *coming soon* | *coming soon* | *coming soon* |
 
 ---
 
-## Screenshots
+## ✨ Features
 
-*Coming soon*
+### Core
+- **Expense CRUD** — Add, edit, delete with calendar date picker
+- **Search & Filter** — Real-time search + category filter chips
+- **Month Navigation** — Browse spending history month by month
+- **CSV Import/Export** — Bulk import from bank statements, export to spreadsheet
+
+### Smart Categorization (3-Layer Engine)
+- 🧠 **Learned Corrections** — Remembers every category fix you make
+- 🔍 **Keyword Matching** — Fuzzy matching with typo tolerance
+- 🤖 **AI Fallback** — Groq LLM handles the rest
+
+### AI-Powered
+- **Natural Language Entry** — *"spent 15 bucks at chipotle yesterday"* → auto-parsed
+- **Monthly Insights** — AI-generated spending analysis and saving tips
+
+### Analytics & Budgets
+- 📊 Pie, bar, and line charts with horizontal scrolling
+- 💰 Budget progress bars with 80%/100% alerts
+- 📈 Smart predictions that separate fixed costs from daily spending
+- 🔄 Automatic recurring expense detection
+
+### More
+- Custom category creation (emoji + color + keywords)
+- Onboarding flow for new users
+- Secure auth with session persistence
+- Demo data generator for testing
 
 ---
 
-## Getting Started
+## 🛠 Tech Stack
+
+| | Technology | Purpose |
+|---|-----------|---------|
+| 📱 | **React Native + Expo** | Cross-platform mobile framework |
+| 🔷 | **TypeScript** | Type-safe development |
+| 🧭 | **Expo Router** | File-based navigation |
+| 🗄️ | **Supabase** | PostgreSQL + Auth + Row Level Security |
+| 🤖 | **Groq API** | AI natural language parsing + insights |
+| 📊 | **react-native-chart-kit** | Data visualization |
+| 🔐 | **expo-secure-store** | Encrypted local storage |
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+
-- Expo Go app on your phone ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
-- Supabase account (free) — [supabase.com](https://supabase.com)
-- Groq API key (free) — [console.groq.com](https://console.groq.com)
+- [Expo Go](https://expo.dev/go) on your phone
+- [Supabase](https://supabase.com) account (free)
+- [Groq](https://console.groq.com) API key (free)
 
 ### Setup
 
 ```bash
+# Clone
 git clone https://github.com/srujankothuri/SpendWiseAI.git
 cd SpendWiseAI
+
+# Install
 npm install --legacy-peer-deps
+
+# Configure
 cp .env.example .env
-# Add your Supabase and Groq credentials to .env
+# Add your keys to .env
+
+# Run
 npx expo start
 ```
 
 ### Environment Variables
 
-```
+```env
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 EXPO_PUBLIC_GROQ_API_KEY=your_groq_api_key
 ```
 
+### Database Setup
+1. Create a Supabase project
+2. Run the SQL schema in **SQL Editor** (creates tables, indexes, RLS policies, and triggers)
+3. Disable "Confirm email" in Authentication → Providers → Email
+
 ---
 
-## Future Scope
+## 📁 Project Structure
 
-- Receipt scanning with on-device ML (Google ML Kit)
-- Light/Dark theme toggle
+```
+app/                     # Screens (file-based routing)
+├── (auth)/              # Login, Signup
+├── (tabs)/              # Home, Analytics, Budgets, Settings
+├── add-transaction.tsx  # Add expense modal
+├── ai-entry.tsx         # AI natural language entry
+└── onboarding.tsx       # First-time user flow
+
+src/
+├── components/          # TransactionCard, BudgetProgressCard, SearchBar
+├── lib/                 # Supabase client, API services, Groq client
+├── hooks/               # useAuth, useCategories
+├── utils/               # Categorization engine, analytics, CSV parser
+├── constants/           # Categories, colors
+└── types/               # TypeScript interfaces
+```
+
+---
+
+## 🔮 Future Scope
+
+- Receipt scanning via Google ML Kit (on-device OCR)
 - Push notifications for budget alerts
-- Multi-currency support with real-time exchange rates
-- Bank statement auto-import via Plaid API
-- Expense splitting with friends
+- Multi-currency with real-time exchange rates
+- Bank auto-import via Plaid
+- Expense splitting
 - Home screen widgets
 
 ---
 
-## Author
+## 👨‍💻 Author
 
 **Venkata Srujan Kothuri**
-MS Computer Science — Northeastern University, Boston
+MS Computer Science — Northeastern University
 
-- GitHub: [github.com/srujankothuri](https://github.com/srujankothuri)
-- LinkedIn: [linkedin.com/in/srujankothuri](https://linkedin.com/in/srujankothuri)
+[![GitHub](https://img.shields.io/badge/GitHub-srujankothuri-181717?logo=github)](https://github.com/srujankothuri)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-srujankothuri-0A66C2?logo=linkedin)](https://linkedin.com/in/srujankothuri)
 
 ---
 
-*Built with React Native, Expo, TypeScript, Supabase, and Groq AI*
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
