@@ -106,19 +106,30 @@ export function detectRecurringExpenses(
 }
 
 // ============================================
-// SPENDING PREDICTION (Improved)
+// SPENDING PREDICTION (Smart Separation)
 // ============================================
-// Uses a WEIGHTED approach combining:
-//   - Current month's pace (60% weight)
-//   - Last month's actual total (25% weight)
-//   - Two months ago actual total (15% weight)
+// Key insight: Not all expenses are equal.
+//   - Rent, subscriptions, insurance → one-time monthly (won't repeat)
+//   - Coffee, groceries, transport → recurring daily (will continue)
 //
-// This prevents wild predictions early in the month.
-// If it's Feb 2 and you spent $1200 on rent, pure pace
-// would predict $16,800/month. But blending with
-// historical data gives a much more realistic number.
+// Algorithm:
+//   1. Separate transactions into "one-time" and "regular"
+//   2. One-time expenses are counted as-is (they already happened)
+//   3. Regular expenses are projected forward based on daily average
+//   4. prediction = one_time_total + (regular_daily_avg × total_days)
 //
-// If no historical data exists, falls back to pure pace.
+// How we detect one-time expenses:
+//   - Amount > $75 AND appears only once in the month
+//   - OR category is Housing/Subscriptions (these are typically monthly fixed)
+//
+// Example (Feb 8, 28-day month):
+//   Rent $1200 (one-time) + 7 days of regular spending totaling $175
+//   Regular daily avg = $175 / 7 = $25/day
+//   Prediction = $1200 + ($25 × 28) = $1,900
+//   vs old method: ($1375 / 7) × 28 = $5,500 (wildly wrong)
+//
+// This is a strong interview talking point — shows you understand
+// that naive averaging fails with mixed spending patterns.
 
 interface SpendingPrediction {
   currentTotal: number;
@@ -127,7 +138,12 @@ interface SpendingPrediction {
   daysElapsed: number;
   daysRemaining: number;
   totalDays: number;
+  oneTimeTotal: number;
+  regularTotal: number;
 }
+
+const ONE_TIME_CATEGORIES = ["Housing", "Subscriptions"];
+const ONE_TIME_THRESHOLD = 75; // amounts above this checked for one-time pattern
 
 export function predictMonthlySpending(
   transactions: Transaction[],
@@ -150,33 +166,50 @@ export function predictMonthlySpending(
     daysElapsed = totalDays;
   }
 
-  const currentTotal = transactions.reduce(
-    (sum, t) => sum + Number(t.amount),
-    0
-  );
+  // Separate one-time from regular expenses
+  // Count occurrences of each merchant/description
+  const descCounts: Record<string, number> = {};
+  transactions.forEach((t) => {
+    const key = (t.merchant || t.description).toLowerCase();
+    descCounts[key] = (descCounts[key] || 0) + 1;
+  });
 
-  const dailyAverage = daysElapsed > 0 ? currentTotal / daysElapsed : 0;
-  const pacePrediction = dailyAverage * totalDays;
+  let oneTimeTotal = 0;
+  let regularTotal = 0;
 
-  // Weighted prediction using historical data
-  let predictedTotal: number;
+  transactions.forEach((t) => {
+    const key = (t.merchant || t.description).toLowerCase();
+    const amount = Number(t.amount);
+    const isOneTimeCategory = ONE_TIME_CATEGORIES.includes(t.category);
+    const isLargeOneTime = amount >= ONE_TIME_THRESHOLD && descCounts[key] === 1;
 
-  if (lastMonthTotal && lastMonthTotal > 0 && twoMonthsAgoTotal && twoMonthsAgoTotal > 0) {
-    // All three months available — weighted blend
-    predictedTotal =
-      pacePrediction * 0.6 +
-      lastMonthTotal * 0.25 +
-      twoMonthsAgoTotal * 0.15;
-  } else if (lastMonthTotal && lastMonthTotal > 0) {
-    // Only last month available
-    predictedTotal =
-      pacePrediction * 0.7 +
-      lastMonthTotal * 0.3;
-  } else {
-    // No history — pure pace
-    predictedTotal = pacePrediction;
+    if (isOneTimeCategory || isLargeOneTime) {
+      oneTimeTotal += amount;
+    } else {
+      regularTotal += amount;
+    }
+  });
+
+  const currentTotal = oneTimeTotal + regularTotal;
+
+  // Daily average of ONLY regular spending
+  const regularDailyAvg = daysElapsed > 0 ? regularTotal / daysElapsed : 0;
+
+  // Prediction = one-time (already happened) + regular projected for full month
+  let predictedTotal = oneTimeTotal + (regularDailyAvg * totalDays);
+
+  // Blend with historical data if available (for regular spending portion only)
+  if (lastMonthTotal && lastMonthTotal > 0 && daysElapsed < totalDays) {
+    const progressRatio = daysElapsed / totalDays;
+    // Only blend when early in month — by day 20+, trust current data
+    if (progressRatio < 0.7) {
+      const blendWeight = 0.3 * (1 - progressRatio); // fades as month progresses
+      const historicalAvg = lastMonthTotal;
+      predictedTotal = predictedTotal * (1 - blendWeight) + historicalAvg * blendWeight;
+    }
   }
 
+  const dailyAverage = daysElapsed > 0 ? currentTotal / daysElapsed : 0;
   const daysRemaining = totalDays - daysElapsed;
 
   return {
@@ -186,11 +219,14 @@ export function predictMonthlySpending(
     daysElapsed,
     daysRemaining,
     totalDays,
+    oneTimeTotal: Math.round(oneTimeTotal * 100) / 100,
+    regularTotal: Math.round(regularTotal * 100) / 100,
   };
 }
 
-// Per-category spending prediction
-// Shows "At this pace, you'll spend $X on Food this month"
+// Per-category spending prediction with smart separation
+// Housing and Subscriptions show as-is (won't grow)
+// Other categories project based on daily average
 export function predictCategorySpending(
   transactions: Transaction[],
   month: string
@@ -213,13 +249,26 @@ export function predictCategorySpending(
   });
 
   return Object.entries(categorySpending)
-    .map(([category, current]) => ({
-      category,
-      current: Math.round(current * 100) / 100,
-      predicted:
-        daysElapsed > 0
-          ? Math.round(((current / daysElapsed) * totalDays) * 100) / 100
-          : 0,
-    }))
+    .map(([category, current]) => {
+      const isFixedCost = ONE_TIME_CATEGORIES.includes(category);
+
+      let predicted: number;
+      if (isFixedCost) {
+        // Fixed costs — don't project forward, they won't grow much
+        predicted = current;
+      } else {
+        // Variable costs — project based on daily average
+        predicted =
+          daysElapsed > 0
+            ? Math.round(((current / daysElapsed) * totalDays) * 100) / 100
+            : 0;
+      }
+
+      return {
+        category,
+        current: Math.round(current * 100) / 100,
+        predicted,
+      };
+    })
     .sort((a, b) => b.predicted - a.predicted);
 }

@@ -120,9 +120,9 @@ export default function AnalyticsScreen() {
         dailyMap[day] = (dailyMap[day] || 0) + Number(t.amount);
       });
 
-      // Convert to sorted array
+      // Convert to sorted array with rounded amounts
       const dailyArr = Object.entries(dailyMap)
-        .map(([day, amount]) => ({ day, amount }))
+        .map(([day, amount]) => ({ day, amount: Math.round(amount * 100) / 100 }))
         .sort((a, b) => Number(a.day) - Number(b.day));
       setDailySpending(dailyArr);
 
@@ -371,11 +371,11 @@ export default function AnalyticsScreen() {
                         },
                       ],
                     }}
-                    width={Math.max(screenWidth - 64, dailySpending.length * 50)}
-                    height={200}
+                    width={Math.max(screenWidth - 64, dailySpending.length * 70)}
+                    height={220}
                     chartConfig={{
                       ...chartConfig,
-                      barPercentage: 0.6,
+                      barPercentage: 0.5,
                     }}
                     yAxisLabel="$"
                     yAxisSuffix=""

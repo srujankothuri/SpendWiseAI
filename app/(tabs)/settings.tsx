@@ -16,6 +16,7 @@ import {
 } from "../../src/utils/learnedCategories";
 import { getCustomCategories, deleteCustomCategory, clearCustomCategories } from "../../src/utils/customCategories";
 import { exportTransactionsToCSV } from "../../src/utils/exportImport";
+import { seedDemoData } from "../../src/utils/seedData";
 import { COLORS } from "../../src/constants/colors";
 
 // ============================================
@@ -147,6 +148,36 @@ export default function SettingsScreen() {
             await deleteCustomCategory(id);
             const custom = await getCustomCategories();
             setCustomCats(custom);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLoadDemoData = () => {
+    Alert.alert(
+      "Load Demo Data",
+      "This will add 3 months of sample transactions and budgets. Great for testing and screenshots.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Load",
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) return;
+
+              const result = await seedDemoData(user.id);
+              loadData();
+              Alert.alert(
+                "Demo Data Loaded",
+                `Added ${result.transactions} transactions and ${result.budgets} budgets`
+              );
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to load demo data");
+            }
           },
         },
       ]
@@ -431,6 +462,20 @@ export default function SettingsScreen() {
       {/* ===== DATA MANAGEMENT ===== */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data</Text>
+
+        <TouchableOpacity
+          style={styles.settingCard}
+          onPress={handleLoadDemoData}
+        >
+          <Text style={styles.settingIcon}>🎲</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Load Demo Data</Text>
+            <Text style={styles.settingDescription}>
+              Add 3 months of sample data for testing
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.settingCard}

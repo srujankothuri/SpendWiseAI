@@ -154,9 +154,9 @@ export default function BudgetsScreen() {
               <View style={styles.predictionDivider} />
               <View style={styles.predictionStat}>
                 <Text style={styles.statValue}>
-                  {prediction.daysElapsed}
+                  {formatCurrency(prediction.oneTimeTotal)}
                 </Text>
-                <Text style={styles.statLabel}>Days in</Text>
+                <Text style={styles.statLabel}>Fixed costs</Text>
               </View>
               <View style={styles.predictionDivider} />
               <View style={styles.predictionStat}>
